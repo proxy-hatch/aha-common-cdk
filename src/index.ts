@@ -1,6 +1,6 @@
-
-
 export interface DeploymentEnvironment {
-  region: string;
-  stage: string;
+  readonly region: string;
+  readonly stage: string;
+  readonly accountId: number;
+  readonly appPrefix: string;
 }
