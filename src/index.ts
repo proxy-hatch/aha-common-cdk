@@ -1,5 +1,6 @@
-export class Hello {
-  public sayHello() {
-    return 'hello, world!';
-  }
+
+
+export interface DeploymentEnvironment {
+  region: string;
+  stage: string;
 }
