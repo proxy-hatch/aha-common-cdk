@@ -1,5 +1,5 @@
 {
-  "name": "common-cdk",
+  "name": "aha-common-cdk",
   "version": "1.0.0",
   "description": "Aha common CDK library",
   "main": "index.ts",
@@ -9,19 +9,6 @@
     "cdk": "cdk",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/EarnAha/common-cdk.git"
-  },
-  "author": {
-    "name": "Shawn Wang",
-    "email": "shawn.wang@avancevl.com",
-    "organization": true
-  },
-  "bugs": {
-    "url": "https://github.com/EarnAha/common-cdk/issues"
-  },
-  "homepage": "https://github.com/EarnAha/common-cdk#readme",
   "devDependencies": {
     "@types/jest": "^27",
     "@types/node": "^14",
@@ -42,5 +29,18 @@
   },
   "dependencies": {
     "aws-cdk-lib": "^2.1.0"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/EarnAha/common-cdk.git"
+  },
+  "author": {
+    "name": "Shawn Wang",
+    "email": "shawn.wang@avancevl.com",
+    "organization": true
+  },
+  "bugs": {
+    "url": "https://github.com/EarnAha/common-cdk/issues"
+  },
+  "homepage": "https://github.com/EarnAha/common-cdk#readme"
 }
