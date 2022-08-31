@@ -1,16 +1,17 @@
 export const AHA_DEFAULT_REGION = 'ap-northeast-1';
+
 export const AHA_ORGANIZATION_ACCOUNT = '083784680548';
 
-export const STAGES = {
-  Alpha: 'alpha',
-  Beta: 'beta',
-  Gamma: 'gamma',
-  Prod: 'prod',
+export const STAGE = {
+  ALPHA: 'alpha',
+  BETA: 'beta',
+  GAMMA: 'gamma',
+  PROD: 'prod',
 } as const;
 
-export const SERVICES = {
-  ApiCore: 'api-core',
-  // ApiAuth: 'api-auth',
+export const SERVICE = {
+  API_CORE: 'api-core',
+  // API_AUTH: 'api-auth',
 } as const;
 
 export interface StackCreationInfo {
@@ -40,4 +41,3 @@ export function createStackCreationInfo(account: string, region: string = AHA_DE
     stackPrefix: `Aha-${ region }${ stage ? '-' + stage : '' }`,
   };
 }
-
