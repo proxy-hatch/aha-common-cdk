@@ -7,6 +7,9 @@ import { Repository } from "aws-cdk-lib/aws-ecr";
 import assert from "node:assert";
 
 
+/**
+ * When branch is not provided, defaults to track main branch
+ */
 export type TrackingPackage = {
   readonly package: string;
   readonly branch?: string; // default to main
@@ -35,6 +38,17 @@ export interface DeploymentGroupCreationProps {
 }
 
 /**
+ * Returns the ECR repository name for the service stage
+ *
+ *
+ * @param stackPrefix {@link StackCreationInfo.stackPrefix}
+ * @param service {@link SERVICE}
+ */
+export function getEcrRepositoryName(stackPrefix: string, service: SERVICE) {
+  return `${ stackPrefix }-${ service }-ecr`.toLowerCase();
+}
+
+/**
  * Creates a CDK-managed pipeline for Aha back-end service, built with CodeBuild
  *
  * @remarks also creates ECR image repo for each stage of service.
@@ -53,7 +67,7 @@ export class AhaPipelineStack extends Stack {
     this.props = props;
 
     this.setDeploymentGroupCreationProps(props);
-    this.createEcrs();
+    this.createEcrRepositories();
 
     this.pipeline = new CodePipeline(this, 'Pipeline', {
       crossAccountKeys: true,
@@ -96,9 +110,9 @@ export class AhaPipelineStack extends Stack {
     });
   }
 
-  private createEcrs(): void {
+  private createEcrRepositories(): void {
     this.deploymentGroupCreationProps.forEach(props => {
-      const stageEcrName = `${ props.stackCreationInfo.stackPrefix }-Ecr` as const;
+      const stageEcrName = getEcrRepositoryName(props.stackCreationInfo.stackPrefix, this.props.pipelineInfo.service);
       new Repository(this, stageEcrName, {
             repositoryName: stageEcrName,
             removalPolicy: RemovalPolicy.DESTROY,
@@ -118,9 +132,9 @@ export class AhaPipelineStack extends Stack {
   private addNodeProjectBuildStep(trackingPackages: TrackingPackage[]): ShellStep {
     assert.ok(trackingPackages.length > 0, "number of tracking packages cannot be 0");
 
-    if(trackingPackages.length > 1){
+    if (trackingPackages.length > 1) {
       trackingPackages.shift(); // in-place remove 1st elem
-       // trackingPackages... additional processing
+      // trackingPackages... additional processing
     }
 
     return new ShellStep('Synth', {
