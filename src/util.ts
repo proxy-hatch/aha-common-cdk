@@ -29,6 +29,24 @@ export function getStages(): STAGE[] {
   );
 }
 
+/**
+ * Returns the stages that a service has @link{environmentConfiguration} configured
+ *
+ * @returns a list of {@link STAGE} object
+ *
+ * @param service name
+ */
+export function getStagesForService(service: SERVICE): STAGE[] {
+  let stages: STAGE[] = [];
+  for (let key of Object.keys(environmentConfiguration)) {
+    if (service in environmentConfiguration[<STAGE>(key)]) {
+      stages.push(<STAGE>(key))
+    }
+  }
+
+  return stages;
+}
+
 export function getAccountInfo(service: SERVICE, stage: STAGE): AccountInfo {
   const stageInfo = getStageInfo(stage);
   const accountInfo = stageInfo[service];
