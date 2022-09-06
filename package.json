@@ -9,7 +9,7 @@
     "watch": "tsc -w",
     "cdk": "cdk",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "clean": "rm -rf node_modules package-lock.json build"
+    "clean": "rm -rf node_modules package-lock.json dist"
   },
   "devDependencies": {
     "@types/node": "^14",
