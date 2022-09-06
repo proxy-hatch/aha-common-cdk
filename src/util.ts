@@ -14,11 +14,11 @@ import { AHA_DEFAULT_REGION, SERVICE, StackCreationInfo, STAGE } from "./constan
 import { AccountInfo, environmentConfiguration, StageInfo } from "./environment-configuration";
 import assert from "assert";
 
-export function createStackCreationInfo(account: string, region: string = AHA_DEFAULT_REGION, stage?: string): StackCreationInfo {
+export function createStackCreationInfo(account: string, region: string = AHA_DEFAULT_REGION, stage?: STAGE): StackCreationInfo {
   return {
     account: account,
     region: region,
-    stage: stage ?? '',
+    stage: stage ?? STAGE.ALPHA,
     stackPrefix: `Aha-${ region }${ stage ? '-' + stage : '' }`,
   };
 }

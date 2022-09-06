@@ -15,6 +15,6 @@ export enum SERVICE {
 export interface StackCreationInfo {
   readonly account: string;
   readonly region: string;
-  readonly stage: string;
+  readonly stage: STAGE;
   readonly stackPrefix: string;
 }
