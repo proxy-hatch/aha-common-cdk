@@ -1,10 +1,18 @@
 import { Construct } from "constructs";
 import { RemovalPolicy, Stack, StackProps, Stage } from "aws-cdk-lib";
 import { CodePipeline, CodePipelineSource, ShellStep } from "aws-cdk-lib/pipelines";
-import { AHA_DEFAULT_REGION, SERVICE, StackCreationInfo, STAGE } from "../constant";
+import {
+  AHA_DEFAULT_REGION,
+  GITHUB_CONNECTION_ARN,
+  GITHUB_ORGANIZATION_NAME,
+  SERVICE,
+  StackCreationInfo,
+  STAGE,
+} from "../constant";
 import { createStackCreationInfo, getAccountInfo, getStagesForService } from "../util";
 import { Repository } from "aws-cdk-lib/aws-ecr";
 import assert from "node:assert";
+import { IFileSetProducer } from "aws-cdk-lib/pipelines/lib/blueprint/file-set";
 
 
 /**
@@ -132,23 +140,25 @@ export class AhaPipelineStack extends Stack {
   private addNodeProjectBuildStep(trackingPackages: TrackingPackage[]): ShellStep {
     assert.ok(trackingPackages.length > 0, "number of tracking packages cannot be 0");
 
+    // track additional packages
+    let additionalInputs: Record<string, IFileSetProducer> = {};
     if (trackingPackages.length > 1) {
       trackingPackages.shift(); // in-place remove 1st elem
-      // trackingPackages... additional processing
+      trackingPackages.forEach(pkg => {
+        additionalInputs[pkg.package] = CodePipelineSource.connection(`${ GITHUB_ORGANIZATION_NAME }/${ pkg.package }`, pkg.branch ?? 'main', {
+          connectionArn: GITHUB_CONNECTION_ARN,
+        })
+      });
     }
 
     return new ShellStep('Synth', {
       // generate github connectionArn in the account hosting pipeline
       // from AWS Console https://console.aws.amazon.com/codesuite/settings/connections
       // ref: https://tinyurl.com/setting-github-connection
-      input: CodePipelineSource.connection(trackingPackages[0].package, trackingPackages[0].branch ?? 'main', {
-        connectionArn: 'arn:aws:codestar-connections:ap-northeast-1:756713672993:connection/c345ae61-ea3e-4e91-99fb-36c881a75545',
+      input: CodePipelineSource.connection(`${ GITHUB_ORGANIZATION_NAME }/${ trackingPackages[0].package }`, trackingPackages[0].branch ?? 'main', {
+        connectionArn: GITHUB_CONNECTION_ARN,
       }),
-      // additionalInputs: {
-      //   './': CodePipelineSource.connection('EarnAha/aha-poc-ts-lib', 'main', {
-      //     connectionArn: 'arn:aws:codestar-connections:ap-northeast-1:756713672993:connection/c345ae61-ea3e-4e91-99fb-36c881a75545',
-      //   }),
-      // },
+      additionalInputs: additionalInputs,
       commands: [
         'npm ci',
         'npm run build',
