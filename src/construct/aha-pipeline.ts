@@ -53,7 +53,7 @@ export class AhaPipelineStack extends Stack {
     this.props = props;
 
     this.setDeploymentGroupCreationProps(props);
-    this.createEcrs(scope);
+    this.createEcrs();
 
     this.pipeline = new CodePipeline(this, 'Pipeline', {
       crossAccountKeys: true,
@@ -96,10 +96,10 @@ export class AhaPipelineStack extends Stack {
     });
   }
 
-  private createEcrs(scope: Construct): void {
+  private createEcrs(): void {
     this.deploymentGroupCreationProps.forEach(props => {
       const stageEcrName = `${ props.stackCreationInfo.stackPrefix }-Ecr` as const;
-      new Repository(scope, stageEcrName, {
+      new Repository(this, stageEcrName, {
             repositoryName: stageEcrName,
             removalPolicy: RemovalPolicy.DESTROY,
             lifecycleRules: [ {
