@@ -1,4 +1,4 @@
-import { SERVICE, STAGE } from "./index";
+import { SERVICE, STAGE } from "./constant";
 
 export const AHA_ORGANIZATION_ACCOUNT = '083784680548';
 

@@ -1,5 +1,5 @@
 import { Construct } from "constructs";
-import { Stack, StackProps } from "aws-cdk-lib";
+import { Stack, StackProps, Stage } from "aws-cdk-lib";
 import { CodePipeline, CodePipelineSource, ShellStep } from "aws-cdk-lib/pipelines";
 import { AHA_DEFAULT_REGION, SERVICE, StackCreationInfo, STAGE } from "../constant";
 import { createStackCreationInfo, getAccountInfo, getStages } from "../util";
@@ -9,7 +9,6 @@ export type TrackingPackage = {
   readonly package: string;
   readonly branch?: string; // default to main
 }
-
 
 /**
  *  Complete Pipeline Configuration is passed in the form of BMPipelineConfigurationProps.
@@ -45,30 +44,21 @@ export class AhaPipelineStack extends Stack {
   constructor(scope: Construct, id: string, props: AhaPipelineProps) {
     super(scope, id, props);
 
+    this.setDeploymentGroupCreationProps(props);
+
     this.pipeline = new CodePipeline(this, 'Pipeline', {
       crossAccountKeys: true,
       selfMutation: false,  // TODO: enalbe when no more changes to pipeline
-      synth: new ShellStep('Synth', {
-        // generate github connectionArn in the account hosting pipeline
-        // from AWS Console https://console.aws.amazon.com/codesuite/settings/connections
-        // ref: https://tinyurl.com/setting-github-connection
-        input: CodePipelineSource.connection('EarnAha/aha-poc-express-server', 'main', {
-          connectionArn: 'arn:aws:codestar-connections:ap-northeast-1:756713672993:connection/c345ae61-ea3e-4e91-99fb-36c881a75545',
-        }),
-        additionalInputs: {
-          './': CodePipelineSource.connection('EarnAha/aha-poc-ts-lib', 'main', {
-            connectionArn: 'arn:aws:codestar-connections:ap-northeast-1:756713672993:connection/c345ae61-ea3e-4e91-99fb-36c881a75545',
-          }),
-        },
-        commands: [
-          'npm ci',
-          'npm run build',
-          'npx cdk synth',
-        ],
-      }),
+      synth: this.addNodeProjectBuildStep(),
     });
+  }
 
-    this.setDeploymentGroupCreationProps(props);
+  public addDeploymentStage(stage: STAGE, deploymentStage: Stage) {
+    if(stage !== STAGE.ALPHA){
+      this.addNodeProjectBuildStep();
+    }
+
+    this.pipeline.addStage(deploymentStage);
   }
 
   private setDeploymentGroupCreationProps(props: AhaPipelineProps): void {
@@ -85,9 +75,34 @@ export class AhaPipelineStack extends Stack {
             AHA_DEFAULT_REGION,
             stage),
       });
-
     });
   }
+
+  // TODO: ShellStep is a CodeBuild project. Objective: build Docker Image for the 1st stage and publish to ECR
+  // ref: ShellStep https://docs.aws.amazon.com/cdk/api/v1/docs/pipelines-readme.html#customizing-codebuild-projects:~:text=Click%20here.)-,Customizing%20CodeBuild%20Projects,-CDK%20pipelines%20will
+  // ref: CodeBuildStep https://docs.aws.amazon.com/cdk/api/v1/docs/@aws-cdk_pipelines.CodeBuildStep.html
+  // ref: building Docker image and publish to ECR with CodeBuild https://docs.aws.amazon.com/codebuild/latest/userguide/sample-docker.html
+  private addNodeProjectBuildStep(): ShellStep {
+    return new ShellStep('Synth', {
+      // generate github connectionArn in the account hosting pipeline
+      // from AWS Console https://console.aws.amazon.com/codesuite/settings/connections
+      // ref: https://tinyurl.com/setting-github-connection
+      input: CodePipelineSource.connection('EarnAha/aha-poc-express-server', 'main', {
+        connectionArn: 'arn:aws:codestar-connections:ap-northeast-1:756713672993:connection/c345ae61-ea3e-4e91-99fb-36c881a75545',
+      }),
+      additionalInputs: {
+        './': CodePipelineSource.connection('EarnAha/aha-poc-ts-lib', 'main', {
+          connectionArn: 'arn:aws:codestar-connections:ap-northeast-1:756713672993:connection/c345ae61-ea3e-4e91-99fb-36c881a75545',
+        }),
+      },
+      commands: [
+        'npm ci',
+        'npm run build',
+        'npx cdk synth',
+      ],
+    });
+  }
+
 
 }
 
