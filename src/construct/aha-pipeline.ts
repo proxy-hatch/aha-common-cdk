@@ -79,7 +79,7 @@ export class AhaPipelineStack extends Stack {
 
     this.pipeline = new CodePipeline(this, 'Pipeline', {
       crossAccountKeys: true,
-      selfMutation: false,  // TODO: enalbe when no more changes to pipeline
+      selfMutation: false,  // TODO: enable when no more changes to pipeline
       synth: this.addNodeProjectBuildStep(props.trackingPackages),
     });
   }
@@ -142,20 +142,23 @@ export class AhaPipelineStack extends Stack {
 
     // track additional packages
     let additionalInputs: Record<string, IFileSetProducer> = {};
+    let primaryPackage: TrackingPackage;
     if (trackingPackages.length > 1) {
-      trackingPackages.shift(); // in-place remove 1st elem
+      primaryPackage = trackingPackages.shift()!; // in-place remove 1st elem
       trackingPackages.forEach(pkg => {
         additionalInputs[pkg.package] = CodePipelineSource.connection(`${ GITHUB_ORGANIZATION_NAME }/${ pkg.package }`, pkg.branch ?? 'main', {
           connectionArn: GITHUB_CONNECTION_ARN,
         })
       });
+    } else {
+      primaryPackage = trackingPackages[0]
     }
 
     return new ShellStep('Synth', {
       // generate github connectionArn in the account hosting pipeline
       // from AWS Console https://console.aws.amazon.com/codesuite/settings/connections
       // ref: https://tinyurl.com/setting-github-connection
-      input: CodePipelineSource.connection(`${ GITHUB_ORGANIZATION_NAME }/${ trackingPackages[0].package }`, trackingPackages[0].branch ?? 'main', {
+      input: CodePipelineSource.connection(`${ GITHUB_ORGANIZATION_NAME }/${ primaryPackage.package }`, primaryPackage.branch ?? 'main', {
         connectionArn: GITHUB_CONNECTION_ARN,
       }),
       additionalInputs: additionalInputs,
