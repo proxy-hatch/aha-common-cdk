@@ -27,9 +27,9 @@ export const environmentConfiguration: EnvironmentConfiguration = {
     },
   },
   [STAGE.GAMMA]: {
-    // [SERVICE.API_CORE]: {
-    //   accountId: "522648679392",
-    // },
+    [SERVICE.API_CORE]: {
+      accountId: "522648679392",
+    },
   },
   [STAGE.PROD]: {
     // [SERVICE.API_CORE]: {

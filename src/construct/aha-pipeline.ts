@@ -106,6 +106,9 @@ export class AhaPipelineStack extends Stack {
     const { service, skipProdStages } = props.pipelineInfo;
 
     getStagesForService(service).forEach(stage => {
+      if (stage == STAGE.ALPHA) {
+        return;
+      }
       if (skipProdStages && stage == STAGE.PROD) {
         return;
       }
@@ -173,30 +176,3 @@ export class AhaPipelineStack extends Stack {
 
 
 }
-
-//
-// /**
-//  * Your application
-//  *
-//  * May consist of one or more Stacks (here, two)
-//  *
-//  * By declaring our DatabaseStack and our ComputeStack inside a Stage,
-//  * we make sure they are deployed together, or not at all.
-//  */
-// class StageStacks extends Stage {
-//   constructor(scope: Construct, id: string, props?: StageProps) {
-//     super(scope, id, props);
-//
-//     const stackCreationInfo: StackCreationInfo = createStackCreationInfo(
-//         process.env.DEV_ACCOUNT!,
-//         AHA_DEFAULT_REGION,
-//         STAGE.ALPHA);
-//
-//     const env: Environment = {
-//       account: stackCreationInfo.account,
-//       region: stackCreationInfo.region,
-//     };
-//
-//     createDeploymentStacks(scope, stackCreationInfo, env);
-//   }
-// }
