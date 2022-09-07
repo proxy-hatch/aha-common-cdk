@@ -1,10 +1,10 @@
 import { Construct } from "constructs";
-import { Environment, RemovalPolicy, Stack, StackProps, Stage } from "aws-cdk-lib";
+import { RemovalPolicy, Stack, StackProps, Stage } from "aws-cdk-lib";
 import { CodePipeline, CodePipelineSource, ShellStep } from "aws-cdk-lib/pipelines";
 import {
   AHA_DEFAULT_REGION,
   GITHUB_CONNECTION_ARN,
-  GITHUB_ORGANIZATION_NAME,
+  GITHUB_ORGANIZATION_NAME, REGION,
   SERVICE,
   StackCreationInfo,
   STAGE,
@@ -29,7 +29,6 @@ export type TrackingPackage = {
 export interface AhaPipelineProps extends StackProps {
   readonly pipelineInfo: AhaPipelineInfo;
   readonly trackingPackages: TrackingPackage[];  // the 1st must be service package
-  readonly env: Environment;
 }
 
 /**
@@ -72,7 +71,7 @@ export class AhaPipelineStack extends Stack {
   private readonly props: AhaPipelineProps;
 
   constructor(scope: Construct, id: string, props: AhaPipelineProps) {
-    super(scope, id, props);
+    super(scope, id, { env: { region: REGION.APN1, account: props.pipelineInfo.pipelineAccount } });
     this.props = props;
 
     this.setDeploymentGroupCreationProps(props);
