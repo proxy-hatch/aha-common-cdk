@@ -13,6 +13,7 @@
 import { AHA_DEFAULT_REGION, SERVICE, StackCreationInfo, STAGE } from "./constant";
 import { AccountInfo, environmentConfiguration, StageInfo } from "./environment-configuration";
 import assert from "assert";
+import { Environment } from "aws-cdk-lib";
 
 export function createStackCreationInfo(account: string, region: string = AHA_DEFAULT_REGION, stage?: STAGE): StackCreationInfo {
   return {
@@ -20,6 +21,15 @@ export function createStackCreationInfo(account: string, region: string = AHA_DE
     region: region,
     stage: stage ?? STAGE.ALPHA,
     stackPrefix: `Aha-${ region }${ stage ? '-' + stage : '' }`,
+  };
+}
+
+export function getEnvFromStackCreationInfo(stackCreationInfo: StackCreationInfo): Environment {
+  const { account, region } = stackCreationInfo;
+
+  return {
+    account: account,
+    region: region,
   };
 }
 

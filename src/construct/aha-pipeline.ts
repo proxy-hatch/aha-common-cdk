@@ -1,5 +1,5 @@
 import { Construct } from "constructs";
-import { RemovalPolicy, Stack, StackProps, Stage } from "aws-cdk-lib";
+import { Environment, RemovalPolicy, Stack, StackProps, Stage } from "aws-cdk-lib";
 import { CodePipeline, CodePipelineSource, ShellStep } from "aws-cdk-lib/pipelines";
 import {
   AHA_DEFAULT_REGION,
@@ -29,6 +29,7 @@ export type TrackingPackage = {
 export interface AhaPipelineProps extends StackProps {
   readonly pipelineInfo: AhaPipelineInfo;
   readonly trackingPackages: TrackingPackage[];  // the 1st must be service package
+  readonly env: Environment;
 }
 
 /**
@@ -78,8 +79,9 @@ export class AhaPipelineStack extends Stack {
     this.createEcrRepositories();
 
     this.pipeline = new CodePipeline(this, 'Pipeline', {
-      crossAccountKeys: true,
+      crossAccountKeys: true, // allow multi-account envs
       selfMutation: false,  // TODO: enable when no more changes to pipeline
+      dockerEnabledForSynth: true,  // allow CodeBuild to use Docker
       synth: this.addNodeProjectBuildStep(props.trackingPackages),
     });
   }
