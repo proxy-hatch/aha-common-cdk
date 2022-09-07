@@ -42,9 +42,9 @@ export function getStages(): STAGE[] {
 /**
  * Returns the stages that a service has @link{environmentConfiguration} configured
  *
- * @returns a list of {@link STAGE} object
+ * @returns list of {@link STAGE} object
  *
- * @param service name
+ * @param service {@link SERVICE}
  */
 export function getStagesForService(service: SERVICE): STAGE[] {
   let stages: STAGE[] = [];
@@ -56,6 +56,20 @@ export function getStagesForService(service: SERVICE): STAGE[] {
 
   return stages;
 }
+//
+// /**
+//  * Returns true if a service has a stage configured in @link{environmentConfiguration}
+//  *
+//  * @returns a list of {@link STAGE} object
+//  *
+//  * @param service {@link SERVICE}
+//  * @param stage {@link STAGE}
+//  */
+// export function isStageExistForService(service: SERVICE, stage: STAGE): boolean {
+//   return getStagesForService(service).some(aStage => {
+//     return aStage === stage;
+//   });
+// }
 
 export function getAccountInfo(service: SERVICE, stage: STAGE): AccountInfo {
   const stageInfo = getStageInfo(stage);
