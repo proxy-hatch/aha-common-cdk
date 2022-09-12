@@ -1,8 +1,9 @@
-import { GITHUB_CONNECTION_ARN, GITHUB_ORGANIZATION_NAME, SERVICE, StackCreationInfo } from "../constant";
+import { GITHUB_ACCESS_TOKEN, GITHUB_ORGANIZATION_NAME, SERVICE, StackCreationInfo, STAGE } from "../constant";
 import { CodeBuildStep, CodePipelineSource, ShellStep } from "aws-cdk-lib/pipelines";
 import assert from "node:assert";
 import { IFileSetProducer } from "aws-cdk-lib/pipelines/lib/blueprint/file-set";
 import { BuildSpec } from "aws-cdk-lib/aws-codebuild";
+import { getAccountInfo } from "../util";
 
 /**
  * When branch is not provided, defaults to track main branch
@@ -57,6 +58,9 @@ export function createBuildServiceImageShellStep(synth: ShellStep, accountId: st
           'AWS_REGION': {
             value: region,
           },
+          'GITHUB_TOKEN': {
+            value: GITHUB_ACCESS_TOKEN,
+          },
         },
       },
       phases: {
@@ -71,7 +75,7 @@ export function createBuildServiceImageShellStep(synth: ShellStep, accountId: st
         },
         build: {
           commands: [
-            'git config --local url."https://${GITHUB_TOKEN}@github.com/".insteadOf https://github.com/:',
+            'git config --local url."https://$GITHUB_TOKEN@github.com/".insteadOf https://github.com/:',
             'npm install',
             'npm run build',
             'docker build -t $IMAGE_REPO_NAME .',
@@ -88,8 +92,11 @@ export function createBuildServiceImageShellStep(synth: ShellStep, accountId: st
 }
 
 
-export function buildSynthStep(trackingPackages: TrackingPackage[]): ShellStep {
+export function buildSynthStep(trackingPackages: TrackingPackage[], service: SERVICE, stage: STAGE): ShellStep {
   assert.ok(trackingPackages.length > 0, "number of tracking packages cannot be 0");
+
+  const githubConnectionArn = getAccountInfo(service, stage).githubConnectionArn!;
+  assert.ok(githubConnectionArn, `Github Connection Arn not found for ${ service }, ${ stage }. Is your pipeline hosted here?`);
 
   // track additional packages
   let additionalInputs: Record<string, IFileSetProducer> = {};
@@ -98,7 +105,7 @@ export function buildSynthStep(trackingPackages: TrackingPackage[]): ShellStep {
     primaryPackage = trackingPackages.shift()!; // in-place remove 1st elem
     trackingPackages.forEach(pkg => {
       additionalInputs[pkg.package] = CodePipelineSource.connection(`${ GITHUB_ORGANIZATION_NAME }/${ pkg.package }`, pkg.branch ?? 'main', {
-        connectionArn: GITHUB_CONNECTION_ARN,
+        connectionArn: githubConnectionArn,
       })
     });
   } else {
@@ -106,10 +113,8 @@ export function buildSynthStep(trackingPackages: TrackingPackage[]): ShellStep {
   }
 
   return new ShellStep('Synth', {
-    // To generate github connectionArn in the pipeline-hosting account from AWS Console https://console.aws.amazon.com/codesuite/settings/connections
-    // ref: https://tinyurl.com/setting-github-connection
     input: CodePipelineSource.connection(`${ GITHUB_ORGANIZATION_NAME }/${ primaryPackage.package }`, primaryPackage.branch ?? 'main', {
-      connectionArn: GITHUB_CONNECTION_ARN,
+      connectionArn: githubConnectionArn,
     }),
     additionalInputs: additionalInputs,
     primaryOutputDirectory: 'cdk/cdk.out',

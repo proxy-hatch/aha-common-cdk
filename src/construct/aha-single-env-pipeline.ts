@@ -53,7 +53,7 @@ export class AhaSingleEnvPipelineStack extends Stack {
     this.deploymentGroupCreationProps = this.buildDeploymentGroupCreationProps(props);
     this.createEcrRepository();
 
-    this.synth = buildSynthStep(props.trackingPackages);
+    this.synth = buildSynthStep(props.trackingPackages, props.pipelineInfo.service, props.pipelineInfo.stage);
     this.pipeline = new CodePipeline(this, 'Pipeline', {
       crossAccountKeys: true, // allow multi-account envs
       selfMutation: props.pipelineInfo.pipelineSelfMutation ?? true,

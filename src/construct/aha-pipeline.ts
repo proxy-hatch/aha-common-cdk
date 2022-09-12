@@ -57,7 +57,7 @@ export class AhaPipelineStack extends Stack {
       crossAccountKeys: true, // allow multi-account envs
       selfMutation: props.pipelineInfo.pipelineSelfMutation ?? true,
       dockerEnabledForSynth: true,  // allow CodeBuild to use Docker
-      synth: buildSynthStep(props.trackingPackages),
+      synth: buildSynthStep(props.trackingPackages, props.pipelineInfo.service, STAGE.BETA),
     });
   }
 
