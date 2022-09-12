@@ -10,9 +10,8 @@ import { createStackCreationInfo, getAccountInfo, getStagesForService } from "..
 import { Repository } from "aws-cdk-lib/aws-ecr";
 import {
   BaseAhaPipelineInfo,
-  buildAndPublishServiceImage,
   buildSynthStep, DeploymentGroupCreationProps,
-  getEcrRepositoryName,
+  getEcrName,
   TrackingPackage,
 } from "./pipeline-common";
 
@@ -71,8 +70,7 @@ export class AhaPipelineStack extends Stack {
    *
    */
   public addDeploymentStage(deploymentStage: Stage): void {
-    buildAndPublishServiceImage();
-
+    // TODO: merge with aha-single-env
     this.pipeline.addStage(deploymentStage);
   }
 
@@ -98,7 +96,7 @@ export class AhaPipelineStack extends Stack {
 
   private createEcrRepositories(): void {
     this.deploymentGroupCreationProps.forEach(props => {
-      const stageEcrName = getEcrRepositoryName(props.stackCreationInfo.stackPrefix, this.props.pipelineInfo.service);
+      const stageEcrName = getEcrName(props.stackCreationInfo.stackPrefix, this.props.pipelineInfo.service);
       new Repository(this, stageEcrName, {
             repositoryName: stageEcrName,
             removalPolicy: RemovalPolicy.DESTROY,

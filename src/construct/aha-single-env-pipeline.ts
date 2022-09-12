@@ -1,9 +1,9 @@
 import { Construct } from "constructs";
 import { RemovalPolicy, Stack, StackProps, Stage } from "aws-cdk-lib";
-import { CodePipeline } from "aws-cdk-lib/pipelines";
+import { CodePipeline, ShellStep } from "aws-cdk-lib/pipelines";
 import {
   AHA_DEFAULT_REGION,
-  REGION,
+  REGION, StackCreationInfo,
   STAGE,
 } from "../constant";
 import { createStackCreationInfo, getAccountInfo } from "../util";
@@ -11,9 +11,8 @@ import { Repository } from "aws-cdk-lib/aws-ecr";
 import assert from "node:assert";
 import {
   BaseAhaPipelineInfo,
-  buildAndPublishServiceImage,
-  buildSynthStep, DeploymentGroupCreationProps,
-  getEcrRepositoryName,
+  buildSynthStep, createBuildServiceImageShellStep, DeploymentGroupCreationProps,
+  getEcrName,
   TrackingPackage,
 } from "./pipeline-common";
 import { AssertionError } from "assert";
@@ -45,6 +44,7 @@ export class AhaSingleEnvPipelineStack extends Stack {
   public readonly pipeline: CodePipeline;
   private readonly props: AhaSingleEnvPipelineProps;
   private isDeploymentStageSet: boolean = false;
+  private readonly synth: ShellStep;
 
   constructor(scope: Construct, id: string, props: AhaSingleEnvPipelineProps) {
     super(scope, id, { env: { region: REGION.APN1, account: props.pipelineInfo.pipelineAccount } });
@@ -53,29 +53,42 @@ export class AhaSingleEnvPipelineStack extends Stack {
     this.deploymentGroupCreationProps = this.buildDeploymentGroupCreationProps(props);
     this.createEcrRepository();
 
+    this.synth = buildSynthStep(props.trackingPackages);
     this.pipeline = new CodePipeline(this, 'Pipeline', {
       crossAccountKeys: true, // allow multi-account envs
       selfMutation: props.pipelineInfo.pipelineSelfMutation ?? true,
       dockerEnabledForSynth: true,  // allow CodeBuild to use Docker
-      synth: buildSynthStep(props.trackingPackages),
+      synth: this.synth,
     });
   }
 
   /**
    * Adds the deployment stacks in a single stage to the pipeline env.
    *
-   * @remarks also adds a CodeBuild stage to publish src code to ECR named `${ props.stackCreationInfo.stackPrefix }-Ecr`
+   * @remarks also adds a CodeBuild stage prior to deployment stage, to publish src code to ECR named `${ props.stackCreationInfo.stackPrefix }-Ecr`
    *
+   * @param stackCreationInfo - the env that infrastructure stacks is being deployed to
    * @param deploymentStage - The collection of infrastructure stacks for this env
    *
    */
-  public addDeploymentStage(deploymentStage: Stage): void {
-    assert.ok(!this.isDeploymentStageSet, "deployment stage already created! Only 1 deployment stage allowed for single env pipeline");
+  public addDeploymentStage(stackCreationInfo: StackCreationInfo, deploymentStage: Stage): void {
+    assert.strictEqual(this.isDeploymentStageSet, false, "deployment stage already created! Only 1 deployment stage allowed for single env pipeline");
+
+    this.pipeline.addStage(<Stage>deploymentStage,
+        {
+          post: [
+            createBuildServiceImageShellStep(
+                this.synth,
+                stackCreationInfo.account,
+                getEcrName(stackCreationInfo.stackPrefix, this.props.pipelineInfo.service),
+            ),
+            // TODO: step function to wait for app healthy
+            // TODO: run integ test step
+          ],
+        },
+    );
+
     this.isDeploymentStageSet = true;
-
-    buildAndPublishServiceImage();
-
-    this.pipeline.addStage(deploymentStage);
   }
 
   private buildDeploymentGroupCreationProps(props: AhaSingleEnvPipelineProps): DeploymentGroupCreationProps {
@@ -101,7 +114,7 @@ export class AhaSingleEnvPipelineStack extends Stack {
   }
 
   private createEcrRepository(): void {
-    const stageEcrName = getEcrRepositoryName(
+    const stageEcrName = getEcrName(
         this.deploymentGroupCreationProps.stackCreationInfo.stackPrefix, this.props.pipelineInfo.service);
     new Repository(this, stageEcrName, {
           repositoryName: stageEcrName,

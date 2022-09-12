@@ -1,7 +1,8 @@
 import { GITHUB_CONNECTION_ARN, GITHUB_ORGANIZATION_NAME, SERVICE, StackCreationInfo } from "../constant";
-import { CodePipelineSource, ShellStep } from "aws-cdk-lib/pipelines";
+import { CodeBuildStep, CodePipelineSource, ShellStep } from "aws-cdk-lib/pipelines";
 import assert from "node:assert";
 import { IFileSetProducer } from "aws-cdk-lib/pipelines/lib/blueprint/file-set";
+import { BuildSpec } from "aws-cdk-lib/aws-codebuild";
 
 /**
  * When branch is not provided, defaults to track main branch
@@ -35,16 +36,52 @@ export interface DeploymentGroupCreationProps {
  * @param stackPrefix {@link StackCreationInfo.stackPrefix}
  * @param service {@link SERVICE}
  */
-export function getEcrRepositoryName(stackPrefix: string, service: SERVICE) {
+export function getEcrName(stackPrefix: string, service: SERVICE) {
   return `${ stackPrefix }-${ service }-ecr`.toLowerCase();
 }
 
-// TODO: Timmy - ShellStep is a CodeBuild project. Function objective: build Docker Image for each stage and publish to ECR
-// ref: ShellStep https://docs.aws.amazon.com/cdk/api/v1/docs/pipelines-readme.html#customizing-codebuild-projects:~:text=Click%20here.)-,Customizing%20CodeBuild%20Projects,-CDK%20pipelines%20will
-// ref: CodeBuildStep https://docs.aws.amazon.com/cdk/api/v1/docs/@aws-cdk_pipelines.CodeBuildStep.html
-// ref: building Docker image and publish to ECR with CodeBuild https://docs.aws.amazon.com/codebuild/latest/userguide/sample-docker.html
-export function buildAndPublishServiceImage(){
+export function createBuildServiceImageShellStep(synth: ShellStep, accountId: string, ecrName: string) {
+  return new CodeBuildStep(`Build and publish service image`, {
+    input: synth.addOutputDirectory('./'),
+    commands: [],
+    partialBuildSpec: BuildSpec.fromObject({
+      version: '0.2',
+      env: {
+        variables: {
+          'AWS_ACCOUNT_ID': {
+            value: accountId,
+          },
+          'IMAGE_REPO_NAME': {
+            value: ecrName,
+          },
+        },
+      },
+      phases: {
+        install: {
+          'runtime-versions': {
+            nodejs: 16,
+          },
+          commands: 'npm install -g typescript"',
+        },
+        pre_build: {
+          commands: '$(aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com)',
+        },
+        build: {
+          commands: [
+            'git config --local url."https://${GITHUB_TOKEN}@github.com/".insteadOf https://github.com/:',
+            'npm install',
+            'npm run build',
+            'docker build -t $IMAGE_REPO_NAME .',
+            'docker tag $IMAGE_REPO_NAME:$IMAGE_TAG $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG',
+          ],
+        },
+        post_build: {
+          commands: 'docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:latest',
+        },
+      },
+    }),
 
+  });
 }
 
 
@@ -71,12 +108,13 @@ export function buildSynthStep(trackingPackages: TrackingPackage[]): ShellStep {
     input: CodePipelineSource.connection(`${ GITHUB_ORGANIZATION_NAME }/${ primaryPackage.package }`, primaryPackage.branch ?? 'main', {
       connectionArn: GITHUB_CONNECTION_ARN,
     }),
-    primaryOutputDirectory: 'cdk/cdk.out',
     additionalInputs: additionalInputs,
+    primaryOutputDirectory: 'cdk/cdk.out',
     commands: [
       'npm ci',
       'npm run build',
       'npx cdk synth',
     ],
+
   });
 }
