@@ -40,7 +40,7 @@ export function getEcrName(stackPrefix: string, service: SERVICE) {
   return `${ stackPrefix }-${ service }-ecr`.toLowerCase();
 }
 
-export function createBuildServiceImageShellStep(synth: ShellStep, accountId: string, ecrName: string) {
+export function createBuildServiceImageShellStep(synth: ShellStep, accountId: string, region: string, ecrName: string) {
   return new CodeBuildStep(`Build and publish service image`, {
     input: synth.addOutputDirectory('./'),
     commands: [],
@@ -54,6 +54,9 @@ export function createBuildServiceImageShellStep(synth: ShellStep, accountId: st
           'IMAGE_REPO_NAME': {
             value: ecrName,
           },
+          'AWS_REGION': {
+            value: region,
+          },
         },
       },
       phases: {
@@ -64,7 +67,7 @@ export function createBuildServiceImageShellStep(synth: ShellStep, accountId: st
           commands: 'npm install -g typescript"',
         },
         pre_build: {
-          commands: '$(aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com)',
+          commands: '$(aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com)',
         },
         build: {
           commands: [
@@ -72,11 +75,11 @@ export function createBuildServiceImageShellStep(synth: ShellStep, accountId: st
             'npm install',
             'npm run build',
             'docker build -t $IMAGE_REPO_NAME .',
-            'docker tag $IMAGE_REPO_NAME:$IMAGE_TAG $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG',
+            'docker tag $IMAGE_REPO_NAME:$IMAGE_TAG $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG',
           ],
         },
         post_build: {
-          commands: 'docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:latest',
+          commands: 'docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$IMAGE_REPO_NAME:latest',
         },
       },
     }),

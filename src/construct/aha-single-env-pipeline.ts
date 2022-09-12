@@ -80,6 +80,7 @@ export class AhaSingleEnvPipelineStack extends Stack {
             createBuildServiceImageShellStep(
                 this.synth,
                 stackCreationInfo.account,
+                stackCreationInfo.region,
                 getEcrName(stackCreationInfo.stackPrefix, this.props.pipelineInfo.service),
             ),
             // TODO: step function to wait for app healthy
