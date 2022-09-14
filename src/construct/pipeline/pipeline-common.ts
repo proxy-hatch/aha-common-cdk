@@ -1,9 +1,21 @@
-import { GITHUB_ACCESS_TOKEN, GITHUB_ORGANIZATION_NAME, SERVICE, StackCreationInfo, STAGE } from "../constant";
-import { CodeBuildStep, CodePipelineSource, ShellStep } from "aws-cdk-lib/pipelines";
+import { GITHUB_ACCESS_TOKEN, GITHUB_ORGANIZATION_NAME, SERVICE, StackCreationInfo, STAGE } from "../../constant";
+import {
+  CodeBuildStep, CodePipelineActionFactoryResult,
+  CodePipelineSource,
+  ICodePipelineActionFactory,
+  ProduceActionOptions,
+  ShellStep,
+  Step,
+} from "aws-cdk-lib/pipelines";
 import assert from "node:assert";
 import { IFileSetProducer } from "aws-cdk-lib/pipelines/lib/blueprint/file-set";
 import { BuildSpec } from "aws-cdk-lib/aws-codebuild";
-import { getAccountInfo } from "../util";
+import { getAccountInfo } from "../../util";
+import * as cpactions from "aws-cdk-lib/aws-codepipeline-actions";
+import { IStage } from "aws-cdk-lib/aws-codepipeline";
+import { StateMachine, Succeed, Wait, WaitTime } from "aws-cdk-lib/aws-stepfunctions";
+import { Duration } from "aws-cdk-lib";
+import { Construct } from "constructs";
 
 /**
  * When branch is not provided, defaults to track main branch
@@ -41,7 +53,7 @@ export function getEcrName(stackPrefix: string, service: SERVICE) {
   return `${ stackPrefix }-${ service }-ecr`.toLowerCase();
 }
 
-export function createBuildServiceImageShellStep(synth: ShellStep, accountId: string, region: string, ecrName: string) {
+export function createServiceImageBuildCodeBuildStep(synth: ShellStep, accountId: string, region: string, ecrName: string) {
   return new CodeBuildStep(`Build and publish service image`, {
     input: synth.addOutputDirectory('./'),
     commands: [],
@@ -125,4 +137,38 @@ export function buildSynthStep(trackingPackages: TrackingPackage[], service: SER
     ],
 
   });
+
 }
+
+export function createDeploymentWaitStateMachine(scope: Construct, service: SERVICE): StateMachine {
+  return new StateMachine(scope, `${ service }-Pipeline-WaitStateMachine`, {
+    timeout: Duration.minutes(10),
+    definition: new Wait(scope, 'Wait', {
+      time: WaitTime.duration(Duration.minutes(3)),
+      comment: 'wait 3mins for deployment',
+    }).next(new Succeed(scope, "Completed waiting for deployment")),
+  });
+}
+
+// ref: https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.pipelines-readme.html#arbitrary-codepipeline-actions
+export class DeploymentSfnStep extends Step implements ICodePipelineActionFactory {
+  constructor(
+      private readonly stateMachine: StateMachine,
+  ) {
+    super('DeploymentSfnStep');
+  }
+
+  public produceAction(stage: IStage, options: ProduceActionOptions): CodePipelineActionFactoryResult {
+    stage.addAction(new cpactions.StepFunctionInvokeAction({
+      // Copy 'actionName' and 'runOrder' from the options
+      actionName: options.actionName,
+      runOrder: options.runOrder,
+
+      stateMachine: this.stateMachine,
+    }))
+
+    return { runOrdersConsumed: 1 };
+  }
+
+}
+

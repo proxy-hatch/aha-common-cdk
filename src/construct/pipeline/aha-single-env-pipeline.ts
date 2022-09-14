@@ -1,17 +1,21 @@
 import { Construct } from "constructs";
 import { RemovalPolicy, Stack, StackProps, Stage } from "aws-cdk-lib";
-import { CodePipeline, ShellStep } from "aws-cdk-lib/pipelines";
+import { CodePipeline, ShellStep, Step } from "aws-cdk-lib/pipelines";
 import {
   AHA_DEFAULT_REGION,
   REGION, StackCreationInfo,
   STAGE,
-} from "../constant";
-import { createStackCreationInfo, getAccountInfo } from "../util";
+} from "../../constant";
+import { createStackCreationInfo, getAccountInfo } from "../../util";
 import { Repository } from "aws-cdk-lib/aws-ecr";
 import assert from "node:assert";
 import {
   BaseAhaPipelineInfo,
-  buildSynthStep, createBuildServiceImageShellStep, DeploymentGroupCreationProps,
+  buildSynthStep,
+  createServiceImageBuildCodeBuildStep,
+  createDeploymentWaitStateMachine,
+  DeploymentGroupCreationProps,
+  DeploymentSfnStep,
   getEcrName,
   TrackingPackage,
 } from "./pipeline-common";
@@ -42,13 +46,13 @@ export interface AhaSingleEnvPipelineInfo extends BaseAhaPipelineInfo {
 export class AhaSingleEnvPipelineStack extends Stack {
   public readonly deploymentGroupCreationProps!: DeploymentGroupCreationProps;
   public readonly pipeline: CodePipeline;
-  private readonly props: AhaSingleEnvPipelineProps;
   private isDeploymentStageSet: boolean = false;
   private readonly synth: ShellStep;
+  private readonly deploymentWaitStep: Step;
 
-  constructor(scope: Construct, id: string, props: AhaSingleEnvPipelineProps) {
+  constructor(scope: Construct, id: string,
+              private readonly props: AhaSingleEnvPipelineProps) {
     super(scope, id, { env: { region: REGION.APN1, account: props.pipelineInfo.pipelineAccount } });
-    this.props = props;
 
     this.deploymentGroupCreationProps = this.buildDeploymentGroupCreationProps(props);
     this.createEcrRepository();
@@ -60,12 +64,16 @@ export class AhaSingleEnvPipelineStack extends Stack {
       dockerEnabledForSynth: true,  // allow CodeBuild to use Docker
       synth: this.synth,
     });
+
+    // used to wait for deployment completion
+    // TODO: use deployment health check instead https://app.zenhub.com/workspaces/back-edtech-623a878cdf3d780017775a34/issues/earnaha/api-core/1709
+    this.deploymentWaitStep = new DeploymentSfnStep(createDeploymentWaitStateMachine(scope, props.pipelineInfo.service));
   }
 
   /**
    * Adds the deployment stacks in a single stage to the pipeline env.
    *
-   * @remarks also adds a CodeBuild stage prior to deployment stage, to publish src code to ECR named `${ props.stackCreationInfo.stackPrefix }-Ecr`
+   * @remarks also add steps post-stack deployment: 1. publish src code to ECR named `${ props.stackCreationInfo.stackPrefix }-Ecr` 2. insert deployment wait time 3. run integration test
    *
    * @param stackCreationInfo - the env that infrastructure stacks is being deployed to
    * @param deploymentStage - The collection of infrastructure stacks for this env
@@ -77,13 +85,13 @@ export class AhaSingleEnvPipelineStack extends Stack {
     this.pipeline.addStage(<Stage>deploymentStage,
         {
           post: [
-            createBuildServiceImageShellStep(
+            createServiceImageBuildCodeBuildStep(
                 this.synth,
                 stackCreationInfo.account,
                 stackCreationInfo.region,
                 getEcrName(stackCreationInfo.stackPrefix, this.props.pipelineInfo.service),
             ),
-            // TODO: step function to wait for app healthy
+            this.deploymentWaitStep,
             // TODO: run integ test step
           ],
         },
