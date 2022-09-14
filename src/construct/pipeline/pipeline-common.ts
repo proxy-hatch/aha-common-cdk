@@ -28,7 +28,10 @@ export type TrackingPackage = {
 /**
  * Object containing the required data to set up a pipeline.
  *
- * pipelineSelfMutation defaults to true. For new pipeline, disabling this may make development easier
+ * @remarks pipelineSelfMutation defaults to true. For new pipeline, disabling this may make development easier;
+ * deploymentWaitTimeMins. This is the time between ECR image publish and integration test begins
+ * // TODO: introduce health check instead https://app.zenhub.com/workspaces/back-edtech-623a878cdf3d780017775a34/issues/earnaha/api-core/1709
+ *
  * ref: https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.pipelines-readme.html#:~:text=after%20doing%20this.-,Working%20on%20the%20pipeline,-The%20self%2Dmutation
  */
 export interface BaseAhaPipelineInfo {
@@ -36,6 +39,7 @@ export interface BaseAhaPipelineInfo {
   readonly pipelineName: string;
   readonly pipelineAccount: string;
   readonly pipelineSelfMutation?: boolean;
+  readonly deploymentWaitTimeMins: number;
 }
 
 export interface DeploymentGroupCreationProps {
@@ -140,12 +144,12 @@ export function buildSynthStep(trackingPackages: TrackingPackage[], service: SER
 
 }
 
-export function createDeploymentWaitStateMachine(scope: Construct, service: SERVICE): StateMachine {
+export function createDeploymentWaitStateMachine(scope: Construct, service: SERVICE, waitTimeMins: number): StateMachine {
   return new StateMachine(scope, `${ service }-Pipeline-WaitStateMachine`, {
-    timeout: Duration.minutes(10),
+    timeout: Duration.minutes(waitTimeMins + 5),
     definition: new Wait(scope, 'Wait', {
-      time: WaitTime.duration(Duration.minutes(3)),
-      comment: 'wait 3mins for deployment',
+      time: WaitTime.duration(Duration.minutes(waitTimeMins)),
+      comment: `wait ${ waitTimeMins }mins for deployment`,
     }).next(new Succeed(scope, "Completed waiting for deployment")),
   });
 }
