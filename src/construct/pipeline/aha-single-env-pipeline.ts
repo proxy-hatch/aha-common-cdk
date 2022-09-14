@@ -2,11 +2,9 @@ import { Construct } from "constructs";
 import { RemovalPolicy, Stack, StackProps, Stage } from "aws-cdk-lib";
 import { CodePipeline, ShellStep, Step } from "aws-cdk-lib/pipelines";
 import {
-  AHA_DEFAULT_REGION,
   REGION, StackCreationInfo,
   STAGE,
 } from "../../constant";
-import { createStackCreationInfo, getAccountInfo } from "../../util";
 import { Repository } from "aws-cdk-lib/aws-ecr";
 import assert from "node:assert";
 import {
@@ -17,10 +15,9 @@ import {
   DeploymentGroupCreationProps,
   DeploymentSfnStep,
   getEcrName,
-  TrackingPackage,
+  TrackingPackage, buildDeploymentGroupCreationProps,
 } from "./pipeline-common";
-import { AssertionError } from "assert";
-
+import { StateMachine } from "aws-cdk-lib/aws-stepfunctions";
 
 /**
  *  Complete single-env pipeline configuration
@@ -48,13 +45,13 @@ export class AhaSingleEnvPipelineStack extends Stack {
   public readonly pipeline: CodePipeline;
   private isDeploymentStageSet: boolean = false;
   private readonly synth: ShellStep;
-  private readonly deploymentWaitStep: Step;
+  private readonly deploymentWaitStateMachine: StateMachine;
 
   constructor(scope: Construct, id: string,
               private readonly props: AhaSingleEnvPipelineProps) {
     super(scope, id, { env: { region: REGION.APN1, account: props.pipelineInfo.pipelineAccount } });
 
-    this.deploymentGroupCreationProps = this.buildDeploymentGroupCreationProps(props);
+    this.deploymentGroupCreationProps = buildDeploymentGroupCreationProps(props.pipelineInfo.service, props.pipelineInfo.stage);
     this.createEcrRepository();
 
     this.synth = buildSynthStep(props.trackingPackages, props.pipelineInfo.service, props.pipelineInfo.stage);
@@ -65,9 +62,7 @@ export class AhaSingleEnvPipelineStack extends Stack {
       synth: this.synth,
     });
 
-    // used to wait for deployment completion
-    // TODO: use deployment health check instead https://app.zenhub.com/workspaces/back-edtech-623a878cdf3d780017775a34/issues/earnaha/api-core/1709
-    this.deploymentWaitStep = new DeploymentSfnStep(createDeploymentWaitStateMachine(this, props.pipelineInfo.service, props.pipelineInfo.deploymentWaitTimeMins));
+    this.deploymentWaitStateMachine = createDeploymentWaitStateMachine(this, props.pipelineInfo.service, props.pipelineInfo.deploymentWaitTimeMins);
   }
 
   /**
@@ -84,42 +79,22 @@ export class AhaSingleEnvPipelineStack extends Stack {
 
     this.pipeline.addStage(<Stage>deploymentStage,
         {
-          post: [
-            createServiceImageBuildCodeBuildStep(
-                this.synth,
-                stackCreationInfo.account,
-                stackCreationInfo.region,
-                getEcrName(stackCreationInfo.stackPrefix, this.props.pipelineInfo.service),
-            ),
-            this.deploymentWaitStep,
-            // TODO: run integ test step
-          ],
-        },
-    );
+          post:
+              Step.sequence([
+                createServiceImageBuildCodeBuildStep(
+                    this.synth,
+                    stackCreationInfo.account,
+                    stackCreationInfo.region,
+                    getEcrName(stackCreationInfo.stackPrefix, this.props.pipelineInfo.service),
+                ),
+                // used to wait for deployment completion
+                // TODO: use deployment health check instead https://app.zenhub.com/workspaces/back-edtech-623a878cdf3d780017775a34/issues/earnaha/api-core/1709
+                new DeploymentSfnStep(this.deploymentWaitStateMachine),
+                // TODO: run integ test step
+              ]),
+        });
 
     this.isDeploymentStageSet = true;
-  }
-
-  private buildDeploymentGroupCreationProps(props: AhaSingleEnvPipelineProps): DeploymentGroupCreationProps {
-    const { service, stage } = props.pipelineInfo;
-
-    let accountId: string;
-    try {
-      accountId = getAccountInfo(service, stage).accountId;
-    } catch (e: unknown) {
-      if (e instanceof AssertionError) {
-        throw new ReferenceError(`stage ${ stage } for ${ service } not found: ${ e.message }`);
-      } else {
-        throw new Error(`Unknown error while retrieving accountInfo for stage ${ service } ${ stage }: ${ e }`);
-      }
-    }
-
-    return {
-      stackCreationInfo: createStackCreationInfo(
-          accountId,
-          AHA_DEFAULT_REGION,
-          stage),
-    }
   }
 
   private createEcrRepository(): void {

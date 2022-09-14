@@ -1,4 +1,11 @@
-import { GITHUB_ACCESS_TOKEN, GITHUB_ORGANIZATION_NAME, SERVICE, StackCreationInfo, STAGE } from "../../constant";
+import {
+  AHA_DEFAULT_REGION,
+  GITHUB_ACCESS_TOKEN,
+  GITHUB_ORGANIZATION_NAME,
+  SERVICE,
+  StackCreationInfo,
+  STAGE,
+} from "../../constant";
 import {
   CodeBuildStep, CodePipelineActionFactoryResult,
   CodePipelineSource,
@@ -10,11 +17,12 @@ import {
 import assert from "node:assert";
 import { IFileSetProducer } from "aws-cdk-lib/pipelines/lib/blueprint/file-set";
 import { BuildSpec } from "aws-cdk-lib/aws-codebuild";
-import { getAccountInfo } from "../../util";
+import { createStackCreationInfo, getAccountInfo } from "../../util";
 import * as cpactions from "aws-cdk-lib/aws-codepipeline-actions";
 import { IStage } from "aws-cdk-lib/aws-codepipeline";
 import { StateMachine, Succeed, Wait, WaitTime } from "aws-cdk-lib/aws-stepfunctions";
 import { Duration, Stack } from "aws-cdk-lib";
+import { AssertionError } from 'assert';
 
 /**
  * When branch is not provided, defaults to track main branch
@@ -141,6 +149,26 @@ export function buildSynthStep(trackingPackages: TrackingPackage[], service: SER
 
   });
 
+}
+
+export function buildDeploymentGroupCreationProps(service: SERVICE, stage: STAGE): DeploymentGroupCreationProps {
+  let accountId: string;
+  try {
+    accountId = getAccountInfo(service, stage).accountId;
+  } catch (e: unknown) {
+    if (e instanceof AssertionError) {
+      throw new ReferenceError(`stage ${ stage } for ${ service } not found: ${ e.message }`);
+    } else {
+      throw new Error(`Unknown error while retrieving accountInfo for stage ${ service } ${ stage }: ${ e }`);
+    }
+  }
+
+  return {
+    stackCreationInfo: createStackCreationInfo(
+        accountId,
+        AHA_DEFAULT_REGION,
+        stage),
+  };
 }
 
 export function createDeploymentWaitStateMachine(scope: Stack, service: SERVICE, waitTimeMins: number): StateMachine {
