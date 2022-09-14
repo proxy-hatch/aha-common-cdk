@@ -67,7 +67,7 @@ export class AhaSingleEnvPipelineStack extends Stack {
 
     // used to wait for deployment completion
     // TODO: use deployment health check instead https://app.zenhub.com/workspaces/back-edtech-623a878cdf3d780017775a34/issues/earnaha/api-core/1709
-    this.deploymentWaitStep = new DeploymentSfnStep(createDeploymentWaitStateMachine(scope, props.pipelineInfo.service, props.pipelineInfo.deploymentWaitTimeMins));
+    this.deploymentWaitStep = new DeploymentSfnStep(createDeploymentWaitStateMachine(this, props.pipelineInfo.service, props.pipelineInfo.deploymentWaitTimeMins));
   }
 
   /**

@@ -14,8 +14,7 @@ import { getAccountInfo } from "../../util";
 import * as cpactions from "aws-cdk-lib/aws-codepipeline-actions";
 import { IStage } from "aws-cdk-lib/aws-codepipeline";
 import { StateMachine, Succeed, Wait, WaitTime } from "aws-cdk-lib/aws-stepfunctions";
-import { Duration } from "aws-cdk-lib";
-import { Construct } from "constructs";
+import { Duration, Stack } from "aws-cdk-lib";
 
 /**
  * When branch is not provided, defaults to track main branch
@@ -144,7 +143,7 @@ export function buildSynthStep(trackingPackages: TrackingPackage[], service: SER
 
 }
 
-export function createDeploymentWaitStateMachine(scope: Construct, service: SERVICE, waitTimeMins: number): StateMachine {
+export function createDeploymentWaitStateMachine(scope: Stack, service: SERVICE, waitTimeMins: number): StateMachine {
   return new StateMachine(scope, `${ service }-Pipeline-WaitStateMachine`, {
     timeout: Duration.minutes(waitTimeMins + 5),
     definition: new Wait(scope, 'Wait', {
