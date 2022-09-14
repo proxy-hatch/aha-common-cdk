@@ -1,5 +1,4 @@
 import {
-  AHA_DEFAULT_REGION,
   GITHUB_ACCESS_TOKEN,
   GITHUB_ORGANIZATION_NAME,
   SERVICE,
@@ -17,12 +16,11 @@ import {
 import assert from "node:assert";
 import { IFileSetProducer } from "aws-cdk-lib/pipelines/lib/blueprint/file-set";
 import { BuildSpec } from "aws-cdk-lib/aws-codebuild";
-import { createStackCreationInfo, getAccountInfo } from "../../util";
+import { getAccountInfo } from "../../util";
 import * as cpactions from "aws-cdk-lib/aws-codepipeline-actions";
 import { IStage } from "aws-cdk-lib/aws-codepipeline";
 import { StateMachine, Succeed, Wait, WaitTime } from "aws-cdk-lib/aws-stepfunctions";
 import { Duration, Stack } from "aws-cdk-lib";
-import { AssertionError } from 'assert';
 
 /**
  * When branch is not provided, defaults to track main branch
@@ -114,7 +112,6 @@ export function createServiceImageBuildCodeBuildStep(synth: ShellStep, accountId
   });
 }
 
-
 export function buildSynthStep(trackingPackages: TrackingPackage[], service: SERVICE, stage: STAGE): ShellStep {
   assert.ok(trackingPackages.length > 0, "number of tracking packages cannot be 0");
 
@@ -129,10 +126,10 @@ export function buildSynthStep(trackingPackages: TrackingPackage[], service: SER
     trackingPackages.forEach(pkg => {
       additionalInputs[pkg.package] = CodePipelineSource.connection(`${ GITHUB_ORGANIZATION_NAME }/${ pkg.package }`, pkg.branch ?? 'main', {
         connectionArn: githubConnectionArn,
-      })
+      });
     });
   } else {
-    primaryPackage = trackingPackages[0]
+    primaryPackage = trackingPackages[0];
   }
 
   return new ShellStep('Synth', {
@@ -146,29 +143,7 @@ export function buildSynthStep(trackingPackages: TrackingPackage[], service: SER
       'npm run build',
       'npx cdk synth',
     ],
-
   });
-
-}
-
-export function buildDeploymentGroupCreationProps(service: SERVICE, stage: STAGE): DeploymentGroupCreationProps {
-  let accountId: string;
-  try {
-    accountId = getAccountInfo(service, stage).accountId;
-  } catch (e: unknown) {
-    if (e instanceof AssertionError) {
-      throw new ReferenceError(`stage ${ stage } for ${ service } not found: ${ e.message }`);
-    } else {
-      throw new Error(`Unknown error while retrieving accountInfo for stage ${ service } ${ stage }: ${ e }`);
-    }
-  }
-
-  return {
-    stackCreationInfo: createStackCreationInfo(
-        accountId,
-        AHA_DEFAULT_REGION,
-        stage),
-  };
 }
 
 export function createDeploymentWaitStateMachine(scope: Stack, service: SERVICE, waitTimeMins: number): StateMachine {
@@ -196,10 +171,51 @@ export class DeploymentSfnStep extends Step implements ICodePipelineActionFactor
       runOrder: options.runOrder,
 
       stateMachine: this.stateMachine,
-    }))
+    }));
 
     return { runOrdersConsumed: 1 };
   }
-
 }
 
+// TODO: Timmy - add Jenkins test
+// ref: https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.pipelines-readme.html#arbitrary-codepipeline-actions
+// export class AhaJenkinsIntegrationTestStep extends Step implements ICodePipelineActionFactory {
+//   constructor(
+//       private readonly service: SERVICE,
+//       private readonly stage: STAGE,
+//       // private readonly input: FileSet, // No need if no input required
+//   ) {
+//     super('MyJenkinsStep');
+//
+//     let provider: cpactions.JenkinsProvider;
+//     // TODO: Timmy - determine Jenkins provider and any other necessary Jenkins param from service and stage
+//
+//     // This is necessary if your step accepts parametres, like environment variables,
+//     // that may contain outputs from other steps. It doesn't matter what the
+//     // structure is, as long as it contains the values that may contain outputs.
+//     // this.discoverReferencedOutputs({
+//     //   env: { /* ... */ }
+//     // });
+//   }
+//
+//   public produceAction(stage: IStage, options: ProduceActionOptions): CodePipelineActionFactoryResult {
+//
+//     // This is where you control what type of Action gets added to the
+//     // CodePipeline
+//     stage.addAction(new cpactions.JenkinsAction({
+//       // Copy 'actionName' and 'runOrder' from the options
+//       actionName: options.actionName,
+//       runOrder: options.runOrder,
+//
+//       // Jenkins-specific configuration
+//       type: cpactions.JenkinsActionType.TEST,
+//       jenkinsProvider: this.provider,
+//       projectName: 'MyJenkinsProject',
+//
+//       // Translate the FileSet into a codepipeline.Artifact
+//       inputs: [options.artifacts.toCodePipeline(this.input)],
+//     }));
+//
+//     return { runOrdersConsumed: 1 };
+//   }
+// }
