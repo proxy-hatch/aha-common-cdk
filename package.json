@@ -2,22 +2,23 @@
   "name": "aha-common-cdk",
   "version": "1.0.0",
   "description": "Aha common CDK library",
-  "main": "index.ts",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "scripts": {
-    "link": "npm link",
-    "unlink": "npm uninstall --global aha-poc-ts-lib",
-    "list-link": "npm ls -g --depth=0 --link=true",
+    "prepare": "npm run build",
     "build": "tsc",
+    "clean-build": "npm run clean && npm install && npm run build",
     "watch": "tsc -w",
     "cdk": "cdk",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "clean": "rm -rf node_modules package-lock.json build"
+    "clean": "rm -rf node_modules package-lock.json dist"
   },
   "devDependencies": {
     "@types/node": "^14",
     "@typescript-eslint/eslint-plugin": "^5.35.1",
     "@typescript-eslint/parser": "^5",
-    "aws-cdk-lib": "2.1.0",
+    "assert": "^2.0.0",
+    "aws-cdk-lib": "2.41.0",
     "eslint": "^8.22.0",
     "eslint-config-standard-with-typescript": "^22.0.0",
     "eslint-import-resolver-node": "^0.3.6",
@@ -28,10 +29,8 @@
     "typescript": "^4.8.2"
   },
   "peerDependencies": {
-    "aws-cdk-lib": "^2.1.0"
-  },
-  "dependencies": {
-    "aws-cdk-lib": "^2.1.0"
+    "assert": "^2.0.0",
+    "aws-cdk-lib": "^2.41.0"
   },
   "repository": {
     "type": "git",
