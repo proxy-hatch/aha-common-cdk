@@ -96,7 +96,7 @@ export function createServiceImageBuildCodeBuildStep(synth: ShellStep, accountId
         },
         build: {
           commands: [
-            'git config --system url."https://$GITHUB_TOKEN@github.com/".insteadOf https://github.com/:',
+            'git config url."https://$GITHUB_TOKEN@github.com/".insteadOf https://github.com/:',
             'npm ci',
             'npm run build',
             'docker build -t $IMAGE_REPO_NAME .',
@@ -142,13 +142,10 @@ export function buildSynthStep(trackingPackages: TrackingPackage[], service: SER
       ['GITHUB_TOKEN']: GITHUB_ACCESS_TOKEN,
     },
     commands: [
-      'echo $GITHUB_TOKENabc',
-      'echo "abc$GITHUB_TOKENabc"',
-      'echo "abc${GITHUB_TOKEN}abc"',
       'cd cdk',
-      'git config --list --show-origin --show-scope',
-      'git config --system url."https://${GITHUB_TOKEN}@github.com/".insteadOf ssh://git@github.com/:',
-      'git config --list --show-origin --show-scope',
+      '/usr/bin/git config --list --show-origin --show-scope',
+      '/usr/bin/git config url."https://${GITHUB_TOKEN}@github.com/".insteadOf ssh://git@github.com/:',
+      '/usr/bin/git config --list --show-origin --show-scope',
       'npm ci',
       'npm run build',
     ],
