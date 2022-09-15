@@ -19,7 +19,8 @@ import {
   TrackingPackage,
 } from "./pipeline-common";
 import { StateMachine } from "aws-cdk-lib/aws-stepfunctions";
-import { createStackCreationInfo} from '../../util';
+import { createStackCreationInfo } from '../../util';
+import { BuildSpec } from 'aws-cdk-lib/aws-codebuild';
 
 /**
  *  Complete single-env pipeline configuration
@@ -62,6 +63,17 @@ export class AhaSingleEnvPipelineStack extends Stack {
       selfMutation: props.pipelineInfo.pipelineSelfMutation ?? true,
       dockerEnabledForSynth: true,  // allow CodeBuild to use Docker
       synth: this.synthStep,
+      synthCodeBuildDefaults: {
+        partialBuildSpec: BuildSpec.fromObject({
+          phases: {
+            install: {
+              "runtime-versions": {
+                nodejs: "16",
+              },
+            },
+          },
+        }),
+      },
     });
 
     this.deploymentWaitStateMachine = createDeploymentWaitStateMachine(this, props.pipelineInfo.service, props.pipelineInfo.deploymentWaitTimeMins);
