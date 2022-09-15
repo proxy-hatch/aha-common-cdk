@@ -70,6 +70,7 @@ export class AhaSingleEnvPipelineStack extends Stack {
               "runtime-versions": {
                 nodejs: "16",
               },
+              commands: [ 'n 16' ],
             },
           },
         }),
