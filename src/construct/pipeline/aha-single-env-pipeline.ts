@@ -54,7 +54,7 @@ export class AhaSingleEnvPipelineStack extends Stack {
               private readonly props: AhaSingleEnvPipelineProps) {
     super(scope, id, { env: { region: REGION.APN1, account: props.pipelineInfo.pipelineAccount } });
 
-    this.deploymentGroupCreationProps = this.buildSingleStageDeploymentGroupCreationProps(props.pipelineInfo.service, props.pipelineInfo.stage);
+    this.deploymentGroupCreationProps = this.buildSingleStageDeploymentGroupCreationProps(this.props.pipelineInfo.pipelineAccount, props.pipelineInfo.stage);
     this.createEcrRepository();
 
     this.synthStep = buildSynthStep(props.trackingPackages, props.pipelineInfo.service, props.pipelineInfo.stage);
@@ -101,18 +101,7 @@ export class AhaSingleEnvPipelineStack extends Stack {
     this.isDeploymentStageSet = true;
   }
 
-  private buildSingleStageDeploymentGroupCreationProps(service: SERVICE, stage: STAGE): DeploymentGroupCreationProps {
-    let accountId: string;
-    try {
-      accountId = getAccountInfo(service, stage).accountId;
-    } catch (e: unknown) {
-      if (e instanceof AssertionError) {
-        throw new ReferenceError(`stage ${ stage } for ${ service } not found: ${ e.message }`);
-      } else {
-        throw new Error(`Unknown error while retrieving accountInfo for stage ${ service } ${ stage }: ${ e }`);
-      }
-    }
-
+  private buildSingleStageDeploymentGroupCreationProps(accountId: string, stage: STAGE): DeploymentGroupCreationProps {
     return {
       stackCreationInfo: createStackCreationInfo(
           accountId,
