@@ -3,7 +3,7 @@ import { RemovalPolicy, Stack, StackProps, Stage } from "aws-cdk-lib";
 import { CodePipeline, ShellStep, Step } from "aws-cdk-lib/pipelines";
 import {
   AHA_DEFAULT_REGION,
-  REGION, SERVICE, StackCreationInfo,
+  REGION, StackCreationInfo,
   STAGE,
 } from "../../constant";
 import { Repository } from "aws-cdk-lib/aws-ecr";
@@ -19,8 +19,7 @@ import {
   TrackingPackage,
 } from "./pipeline-common";
 import { StateMachine } from "aws-cdk-lib/aws-stepfunctions";
-import { createStackCreationInfo, getAccountInfo } from '../../util';
-import { AssertionError } from 'assert';
+import { createStackCreationInfo} from '../../util';
 
 /**
  *  Complete single-env pipeline configuration
