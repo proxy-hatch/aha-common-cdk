@@ -151,7 +151,7 @@ export function buildSynthStep(trackingPackages: TrackingPackage[], service: SER
       'git config --list --show-origin --show-scope',
       'git config --system url."https://${GITHUB_TOKEN}@github.com/".insteadOf ssh://git@github.com/',
       'git config --list --show-origin --show-scope',
-      'npm ci',
+      'npm install',
       'npm run build',
     ],
   });
