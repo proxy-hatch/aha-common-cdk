@@ -21,6 +21,7 @@ import {
 import { StateMachine } from "aws-cdk-lib/aws-stepfunctions";
 import { createStackCreationInfo } from '../../util';
 import { BuildSpec } from 'aws-cdk-lib/aws-codebuild';
+import { ManagedPolicy, PolicyStatement } from 'aws-cdk-lib/aws-iam';
 
 /**
  *  Complete single-env pipeline configuration
@@ -79,6 +80,14 @@ export class AhaSingleEnvPipelineStack extends Stack {
             },
           },
         }),
+      },
+      codeBuildDefaults: {
+        rolePolicy: [
+          new PolicyStatement({
+            actions: [ 'ssm:GetParameters' ],
+            resources: [ '*' ],
+          }),
+        ],
       },
     });
 

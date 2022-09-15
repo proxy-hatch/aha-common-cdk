@@ -150,7 +150,12 @@ export function buildSynthStep(trackingPackages: TrackingPackage[], service: SER
       'ssh-keygen -F github.com || ssh-keyscan github.com >>~/.ssh/known_hosts',
       'git config --global url."git@github.com:".insteadOf "https://github.com/"',
       'npm install',
+      'ls -al',
+      'pwd',
+      'export DEV_ACCOUNT=083784680548',
+      'echo $DEV_ACCOUNT',
       'npm run build',
+      'ls -al cdk.out',
     ],
   });
 }
