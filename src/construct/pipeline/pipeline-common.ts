@@ -144,7 +144,7 @@ export function buildSynthStep(trackingPackages: TrackingPackage[], service: SER
     commands: [
       'cd cdk',
       '/usr/bin/git config --list --show-origin --show-scope',
-      '/usr/bin/git config --global url."https://${GITHUB_TOKEN}@github.com/".insteadOf ssh://git@github.com/:',
+      '/usr/bin/git config --global url."https://${GITHUB_TOKEN}@github.com/".insteadOf https://git@github.com/:',
       '/usr/bin/git config --list --show-origin --show-scope',
       'npm ci',
       'npm run build',
