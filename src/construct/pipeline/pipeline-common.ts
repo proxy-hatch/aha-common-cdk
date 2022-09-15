@@ -96,9 +96,6 @@ export function createServiceImageBuildCodeBuildStep(synth: ShellStep, accountId
         },
         build: {
           commands: [
-            'echo $GITHUB_TOKEN',
-            'echo "abc$GITHUB_TOKEN"',
-            'echo "abc${GITHUB_TOKEN}"',
             'git config --global url."https://$GITHUB_TOKEN@github.com/".insteadOf https://github.com/:',
             'npm install',
             'npm run build',
@@ -145,8 +142,11 @@ export function buildSynthStep(trackingPackages: TrackingPackage[], service: SER
       ['GITHUB_TOKEN']: GITHUB_ACCESS_TOKEN,
     },
     commands: [
+      'echo $GITHUB_TOKEN',
+      'echo "abc$GITHUB_TOKEN"',
+      'echo "abc${GITHUB_TOKEN}"',
       'cd cdk',
-      'git config --global url."https://$GITHUB_TOKEN@github.com/".insteadOf https://github.com/:',
+      'git config --global url."https://${GITHUB_TOKEN}@github.com/".insteadOf https://github.com/:',
       'npm install',
       'npm run build',
     ],
