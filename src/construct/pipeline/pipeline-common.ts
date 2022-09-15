@@ -154,7 +154,7 @@ export function buildSynthStep(trackingPackages: TrackingPackage[], service: SER
       'pwd',
       'export DEV_ACCOUNT=083784680548',
       'echo $DEV_ACCOUNT',
-      'npm run build',
+      'npm run build -- -v',
       'ls -al cdk.out',
     ],
   });
