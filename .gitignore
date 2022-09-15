@@ -1,0 +1,7 @@
+node_modules/
+lib
+dist/
+!/.eslintrc.json
+
+idea/
+.DS_Store
