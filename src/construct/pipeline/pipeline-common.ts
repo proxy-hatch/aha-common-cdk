@@ -146,6 +146,7 @@ export function buildSynthStep(trackingPackages: TrackingPackage[], service: SER
       'git init',
       '/usr/bin/git config --list --show-origin --show-scope',
       '/usr/bin/git config --local url."https://${GITHUB_TOKEN}@github.com/".insteadOf ssh://git@github.com/:',
+      '/usr/bin/git config --local url."https://${GITHUB_TOKEN}@github.com/".insteadOf https://git@github.com/:',
       '/usr/bin/git config --list --show-origin --show-scope',
       'npm ci',
       'npm run build',
