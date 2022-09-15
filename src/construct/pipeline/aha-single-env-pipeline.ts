@@ -65,11 +65,6 @@ export class AhaSingleEnvPipelineStack extends Stack {
       synth: this.synthStep,
       synthCodeBuildDefaults: {
         partialBuildSpec: BuildSpec.fromObject({
-          env: {
-            'parameter-store': {
-              'build_ssh_key': "/poc-test/github-key",
-            },
-          },
           phases: {
             install: {
               "runtime-versions": {
