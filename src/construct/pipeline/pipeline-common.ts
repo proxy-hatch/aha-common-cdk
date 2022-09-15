@@ -136,12 +136,16 @@ export function buildSynthStep(trackingPackages: TrackingPackage[], service: SER
     input: CodePipelineSource.connection(`${ GITHUB_ORGANIZATION_NAME }/${ primaryPackage.package }`, primaryPackage.branch ?? 'main', {
       connectionArn: githubConnectionArn,
     }),
-    additionalInputs: additionalInputs,
+    // additionalInputs: additionalInputs,
     primaryOutputDirectory: 'cdk/cdk.out',
+    env: {
+      ['GITHUB_TOKEN']: GITHUB_ACCESS_TOKEN,
+    },
     commands: [
-      'npm ci',
+      'cd cdk',
+      'git config --local url."https://$GITHUB_TOKEN@github.com/".insteadOf https://github.com/:',
+      'npm install',
       'npm run build',
-      'npx cdk synth',
     ],
   });
 }
