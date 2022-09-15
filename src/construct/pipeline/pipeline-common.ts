@@ -96,8 +96,8 @@ export function createServiceImageBuildCodeBuildStep(synth: ShellStep, accountId
         },
         build: {
           commands: [
-            'git config --global url."https://$GITHUB_TOKEN@github.com/".insteadOf https://github.com/:',
-            'npm install',
+            'git config --system url."https://$GITHUB_TOKEN@github.com/".insteadOf https://github.com/:',
+            'npm ci',
             'npm run build',
             'docker build -t $IMAGE_REPO_NAME .',
             'docker tag $IMAGE_REPO_NAME:$IMAGE_TAG $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG',
@@ -142,14 +142,14 @@ export function buildSynthStep(trackingPackages: TrackingPackage[], service: SER
       ['GITHUB_TOKEN']: GITHUB_ACCESS_TOKEN,
     },
     commands: [
-      'echo $GITHUB_TOKEN',
-      'echo "abc$GITHUB_TOKEN"',
-      'echo "abc${GITHUB_TOKEN}"',
+      'echo $GITHUB_TOKENabc',
+      'echo "abc$GITHUB_TOKENabc"',
+      'echo "abc${GITHUB_TOKEN}abc"',
       'cd cdk',
       'git config --list --show-origin --show-scope',
-      'git config --global url."https://${GITHUB_TOKEN}@github.com/".insteadOf ssh://git@github.com/:',
+      'git config --system url."https://${GITHUB_TOKEN}@github.com/".insteadOf ssh://git@github.com/:',
       'git config --list --show-origin --show-scope',
-      'npm install',
+      'npm ci',
       'npm run build',
     ],
   });
