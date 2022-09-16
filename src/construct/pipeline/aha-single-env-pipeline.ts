@@ -67,6 +67,7 @@ export class AhaSingleEnvPipelineStack extends Stack {
       synthCodeBuildDefaults: {
         partialBuildSpec: BuildSpec.fromObject({
           env: {
+            // TODO: use cross-account parameter-store or make new for each env
             'parameter-store': {
               'build_ssh_key': "/poc-test/github-key",
             },

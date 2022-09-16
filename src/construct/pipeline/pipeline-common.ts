@@ -1,5 +1,4 @@
 import {
-  GITHUB_ACCESS_TOKEN,
   GITHUB_ORGANIZATION_NAME,
   SERVICE,
   StackCreationInfo,
@@ -70,18 +69,13 @@ export function createServiceImageBuildCodeBuildStep(synth: ShellStep, accountId
       version: '0.2',
       env: {
         variables: {
-          'AWS_ACCOUNT_ID': {
-            value: accountId,
-          },
-          'IMAGE_REPO_NAME': {
-            value: ecrName,
-          },
-          'AWS_REGION': {
-            value: region,
-          },
-          'GITHUB_TOKEN': {
-            value: GITHUB_ACCESS_TOKEN,
-          },
+          'AWS_ACCOUNT_ID': accountId,
+          'IMAGE_REPO_NAME': ecrName,
+          'AWS_REGION': region,
+        },
+        // TODO: use cross-account parameter-store or make new for each env
+        'parameter-store': {
+          'build_ssh_key': "/poc-test/github-key",
         },
       },
       phases: {
@@ -89,15 +83,21 @@ export function createServiceImageBuildCodeBuildStep(synth: ShellStep, accountId
           'runtime-versions': {
             nodejs: 16,
           },
-          commands: 'npm install -g typescript"',
+          // commands: 'npm install -g typescript"',
         },
         pre_build: {
           commands: '$(aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com)',
         },
         build: {
           commands: [
-            'git config url."https://$GITHUB_TOKEN@github.com/".insteadOf https://github.com/:',
-            'npm ci',
+            'mkdir -p ~/.ssh',
+            'echo "$build_ssh_key" > ~/.ssh/id_ed25519',
+            'chmod 600 ~/.ssh/id_ed25519',
+            'ssh-keygen -F github.com || ssh-keyscan github.com >>~/.ssh/known_hosts',
+            'git config --global url."git@github.com:".insteadOf "https://github.com/"',
+            'npm install',
+            // TODO: use
+            // 'npm ci',
             'npm run build',
             'docker build -t $IMAGE_REPO_NAME .',
             'docker tag $IMAGE_REPO_NAME:$IMAGE_TAG $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG',
@@ -136,26 +136,25 @@ export function buildSynthStep(trackingPackages: TrackingPackage[], service: SER
     input: CodePipelineSource.connection(`${ GITHUB_ORGANIZATION_NAME }/${ primaryPackage.package }`, primaryPackage.branch ?? 'main', {
       connectionArn: githubConnectionArn,
     }),
-    // additionalInputs: additionalInputs,
+    additionalInputs: additionalInputs,
     primaryOutputDirectory: 'cdk/cdk.out',
-    env: {
-      ['GITHUB_TOKEN']: GITHUB_ACCESS_TOKEN,
-    },
     commands: [
       'cd cdk',
-      'git init',
+      // 'git init',
       'mkdir -p ~/.ssh',
       'echo "$build_ssh_key" > ~/.ssh/id_ed25519',
       'chmod 600 ~/.ssh/id_ed25519',
       'ssh-keygen -F github.com || ssh-keyscan github.com >>~/.ssh/known_hosts',
       'git config --global url."git@github.com:".insteadOf "https://github.com/"',
+      // TODO: use npm ci
       'npm install',
-      'ls -al',
-      'pwd',
+      // 'ls -al',
+      // 'pwd',
+      // TODO: support both single env and pipeline
       'export DEV_ACCOUNT=083784680548',
       'echo $DEV_ACCOUNT',
       'npm run build -- -v',
-      'ls -al cdk.out',
+      // 'ls -al cdk.out',
     ],
   });
 }
