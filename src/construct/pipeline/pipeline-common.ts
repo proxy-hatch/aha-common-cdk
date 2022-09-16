@@ -80,10 +80,10 @@ export function createServiceImageBuildCodeBuildStep(synth: ShellStep, accountId
       },
       phases: {
         install: {
-          'runtime-versions': {
-            nodejs: 16,
+          "runtime-versions": {
+            nodejs: "14",
           },
-          // commands: 'npm install -g typescript"',
+          commands: [ 'n 16' ],
         },
         pre_build: {
           commands: '$(aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com)',
