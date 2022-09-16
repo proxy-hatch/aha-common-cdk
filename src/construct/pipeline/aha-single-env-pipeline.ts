@@ -12,13 +12,10 @@ import {
   BaseAhaPipelineInfo,
   buildSynthStep,
   createServiceImageBuildCodeBuildStep,
-  createDeploymentWaitStateMachine,
   DeploymentGroupCreationProps,
-  DeploymentSfnStep,
   getEcrName,
   TrackingPackage,
 } from "./pipeline-common";
-import { StateMachine } from "aws-cdk-lib/aws-stepfunctions";
 import { createStackCreationInfo } from '../../util';
 import { BuildSpec } from 'aws-cdk-lib/aws-codebuild';
 import { PolicyStatement } from 'aws-cdk-lib/aws-iam';
@@ -49,7 +46,8 @@ export class AhaSingleEnvPipelineStack extends Stack {
   public readonly pipeline: CodePipeline;
   private isDeploymentStageSet: boolean = false;
   private readonly synthStep: ShellStep;
-  private readonly deploymentWaitStateMachine: StateMachine;
+
+  // private readonly deploymentWaitStateMachine: StateMachine;
 
   constructor(scope: Construct, id: string,
               private readonly props: AhaSingleEnvPipelineProps) {
@@ -92,7 +90,7 @@ export class AhaSingleEnvPipelineStack extends Stack {
       },
     });
 
-    this.deploymentWaitStateMachine = createDeploymentWaitStateMachine(this, props.pipelineInfo.service, props.pipelineInfo.deploymentWaitTimeMins);
+    // this.deploymentWaitStateMachine = createDeploymentWaitStateMachine(this, props.pipelineInfo.service, props.pipelineInfo.deploymentWaitTimeMins);
   }
 
   /**
