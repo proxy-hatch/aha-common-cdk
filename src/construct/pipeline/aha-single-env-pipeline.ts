@@ -1,6 +1,6 @@
 import { Construct } from "constructs";
 import { RemovalPolicy, Stack, StackProps, Stage } from "aws-cdk-lib";
-import { CodePipeline, ShellStep, Step } from "aws-cdk-lib/pipelines";
+import { CodePipeline, ShellStep } from "aws-cdk-lib/pipelines";
 import {
   AHA_DEFAULT_REGION,
   REGION, StackCreationInfo,
@@ -102,20 +102,32 @@ export class AhaSingleEnvPipelineStack extends Stack {
    * @param deploymentStage - The collection of infrastructure stacks for this env
    *
    */
-  public addDeploymentStage(stackCreationInfo: StackCreationInfo, deploymentStage: Stage): void {
+  public addDeploymentStage(stackCreationInfo: StackCreationInfo, deploymentStage: Stage, computeStack: Stack): void {
     assert.strictEqual(this.isDeploymentStageSet, false, "deployment stage already created! Only 1 deployment stage allowed for single env pipeline");
 
     this.pipeline.addStage(deploymentStage,
         {
-          pre:
-              Step.sequence([
-                createServiceImageBuildCodeBuildStep(
-                    this.synthStep,
-                    stackCreationInfo.account,
-                    stackCreationInfo.region,
-                    getEcrName(stackCreationInfo.stackPrefix, this.props.pipelineInfo.service),
-                ),
-              ]),
+          stackSteps: [{
+            stack: computeStack,
+            pre: [
+              createServiceImageBuildCodeBuildStep(
+                  this.synthStep,
+                  stackCreationInfo.account,
+                  stackCreationInfo.region,
+                  getEcrName(stackCreationInfo.stackPrefix, this.props.pipelineInfo.service),
+              ),
+
+            ]
+          }],
+          // pre:
+          //     Step.sequence([
+          //       createServiceImageBuildCodeBuildStep(
+          //           this.synthStep,
+          //           stackCreationInfo.account,
+          //           stackCreationInfo.region,
+          //           getEcrName(stackCreationInfo.stackPrefix, this.props.pipelineInfo.service),
+          //       ),
+          //     ]),
           // post:
           //     Step.sequence([
           //       createServiceImageBuildCodeBuildStep(
