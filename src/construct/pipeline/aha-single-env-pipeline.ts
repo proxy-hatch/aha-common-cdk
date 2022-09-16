@@ -109,7 +109,7 @@ export class AhaSingleEnvPipelineStack extends Stack {
 
     this.pipeline.addStage(deploymentStage,
         {
-          post:
+          pre:
               Step.sequence([
                 createServiceImageBuildCodeBuildStep(
                     this.synthStep,
@@ -117,12 +117,21 @@ export class AhaSingleEnvPipelineStack extends Stack {
                     stackCreationInfo.region,
                     getEcrName(stackCreationInfo.stackPrefix, this.props.pipelineInfo.service),
                 ),
-                // used to wait for deployment completion
-                // TODO: use deployment health check instead https://app.zenhub.com/workspaces/back-edtech-623a878cdf3d780017775a34/issues/earnaha/api-core/1709
-                new DeploymentSfnStep(this.deploymentWaitStateMachine),
-                // TODO: Timmy - test Jenkins integration
-                // new AhaJenkinsIntegrationTestStep(this.props.pipelineInfo.service, this.props.pipelineInfo.stage),
               ]),
+          // post:
+          //     Step.sequence([
+          //       createServiceImageBuildCodeBuildStep(
+          //           this.synthStep,
+          //           stackCreationInfo.account,
+          //           stackCreationInfo.region,
+          //           getEcrName(stackCreationInfo.stackPrefix, this.props.pipelineInfo.service),
+          //       ),
+          //       // used to wait for deployment completion
+          //       // TODO: use deployment health check instead https://app.zenhub.com/workspaces/back-edtech-623a878cdf3d780017775a34/issues/earnaha/api-core/1709
+          //       new DeploymentSfnStep(this.deploymentWaitStateMachine),
+          //       // TODO: Timmy - test Jenkins integration
+          //       // new AhaJenkinsIntegrationTestStep(this.props.pipelineInfo.service, this.props.pipelineInfo.stage),
+          //     ]),
         });
 
     this.isDeploymentStageSet = true;
