@@ -81,23 +81,10 @@ export function createServiceImageBuildCodeBuildStep(synth: ShellStep, accountId
           'AWS_REGION': region,
           'IMAGE_TAG': 'latest',
         },
-
-        // TODO: use cross-account parameter-store or make new for each env
-        // 'parameter-store': {
-        //   'build_ssh_key': "/poc-test/github-key",
-        // },
       },
       phases: {
-        install: {
-          "runtime-versions": {
-            nodejs: "14",
-          },
-          commands: [ 'n 16' ],
-        },
         pre_build: {
-          commands: [ 'echo "FIRST VER aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com"',
-            ' echo "SECOND VER aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"',
-            'aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com' ],
+          commands: 'aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com',
         },
         build: {
           commands: [
@@ -117,7 +104,6 @@ export function createServiceImageBuildCodeBuildStep(synth: ShellStep, accountId
         },
       },
     }),
-
   });
 }
 

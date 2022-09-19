@@ -61,16 +61,11 @@ export class AhaSingleEnvPipelineStack extends Stack {
       crossAccountKeys: true, // allow multi-account envs
       selfMutation: props.pipelineInfo.pipelineSelfMutation ?? true,
       synth: this.synthStep,
-      synthCodeBuildDefaults: {
+      codeBuildDefaults: {
         partialBuildSpec: BuildSpec.fromObject({
-          // env: {
-
-          // TODO: use cross-account parameter-store or make new for each env
-          // 'parameter-store': {
-          //   'build_ssh_key': "/poc-test/github-key",
-          // },
-          // },
           phases: {
+            // TODO: directly use nodejs 16 when CodeBuild with CodePipeline has official support
+            // https://github.com/aws/aws-codebuild-docker-images/issues/490
             install: {
               "runtime-versions": {
                 nodejs: "14",
@@ -79,8 +74,6 @@ export class AhaSingleEnvPipelineStack extends Stack {
             },
           },
         }),
-      },
-      codeBuildDefaults: {
         buildEnvironment: {
           environmentVariables: {
             "SSH_PRIVATE_KEY": {
