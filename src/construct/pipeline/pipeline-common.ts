@@ -33,8 +33,6 @@ export type TrackingPackage = {
  * Object containing the required data to set up a pipeline.
  *
  * @remarks pipelineSelfMutation defaults to true. For new pipeline, disabling this may make development easier;
- * @remarks githubSshPrivateKey is retrieved from org management account parameter store. TODO: should be pipeline-internally retrieved from secrets manager
- *          // https://app.zenhub.com/workspace/o/earnaha/api-core/issues/1763
  *
  * deploymentWaitTimeMins. This is the time between ECR image publish and integration test begins
  * // TODO: introduce health check instead https://app.zenhub.com/workspaces/back-edtech-623a878cdf3d780017775a34/issues/earnaha/api-core/1709
@@ -47,7 +45,6 @@ export interface BaseAhaPipelineInfo {
   readonly pipelineAccount: string;
   readonly pipelineSelfMutation?: boolean;
   readonly deploymentWaitTimeMins: number;
-  readonly githubSshPrivateKey: string;
 }
 
 export interface DeploymentGroupCreationProps {

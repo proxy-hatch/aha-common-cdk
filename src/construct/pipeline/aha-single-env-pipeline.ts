@@ -19,6 +19,7 @@ import {
 import { createStackCreationInfo } from '../../util';
 import { BuildEnvironmentVariableType, BuildSpec } from 'aws-cdk-lib/aws-codebuild';
 import { PolicyStatement } from 'aws-cdk-lib/aws-iam';
+import { StringParameter } from 'aws-cdk-lib/aws-ssm';
 
 /**
  *  Complete single-env pipeline configuration
@@ -56,6 +57,11 @@ export class AhaSingleEnvPipelineStack extends Stack {
     this.deploymentGroupCreationProps = this.buildSingleStageDeploymentGroupCreationProps(this.props.pipelineInfo.pipelineAccount, props.pipelineInfo.stage);
     this.createEcrRepository();
 
+    // githubSshPrivateKey is retrieved from pipeline account parameter store.
+    // new pipeline account must create this manually at https://ap-northeast-1.console.aws.amazon.com/systems-manager/parameters/?region=ap-northeast-1
+    // TODO: should be retrieved from central account secrets manager https://app.zenhub.com/workspace/o/earnaha/api-core/issues/1763
+    const githubSshPrivateKey = StringParameter.valueForStringParameter(this, 'github-ssh-private-key');
+
     this.synthStep = buildSynthStep(props.trackingPackages, props.pipelineInfo.service, props.pipelineInfo.stage);
     this.pipeline = new CodePipeline(this, 'Pipeline', {
       crossAccountKeys: true, // allow multi-account envs
@@ -78,7 +84,7 @@ export class AhaSingleEnvPipelineStack extends Stack {
           environmentVariables: {
             "SSH_PRIVATE_KEY": {
               type: BuildEnvironmentVariableType.PLAINTEXT,
-              value: this.props.pipelineInfo.githubSshPrivateKey,
+              value: githubSshPrivateKey,
             },
           },
         },
