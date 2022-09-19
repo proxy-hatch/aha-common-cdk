@@ -86,6 +86,10 @@ export class AhaSingleEnvPipelineStack extends Stack {
             actions: [ 'ssm:GetParameters' ],
             resources: [ '*' ],
           }),
+          new PolicyStatement({
+            actions: [ 'ecr:*' ],
+            resources: [ '*' ],
+          }),
         ],
       },
     });
