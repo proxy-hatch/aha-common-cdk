@@ -17,9 +17,8 @@ import {
   TrackingPackage,
 } from "./pipeline-common";
 import { createStackCreationInfo } from '../../util';
-import { BuildSpec } from 'aws-cdk-lib/aws-codebuild';
+import { BuildEnvironmentVariableType, BuildSpec } from 'aws-cdk-lib/aws-codebuild';
 import { PolicyStatement } from 'aws-cdk-lib/aws-iam';
-import { BuildEnvironmentVariableType } from 'aws-cdk-lib/aws-codebuild/lib/project';
 
 /**
  *  Complete single-env pipeline configuration
