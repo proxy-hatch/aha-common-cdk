@@ -72,6 +72,7 @@ export function createServiceImageBuildCodeBuildStep(synth: ShellStep, accountId
           'AWS_ACCOUNT_ID': accountId,
           'IMAGE_REPO_NAME': ecrName,
           'AWS_REGION': region,
+          'IMAGE_TAG': 'latest',
         },
         // TODO: use cross-account parameter-store or make new for each env
         'parameter-store': {
@@ -86,7 +87,9 @@ export function createServiceImageBuildCodeBuildStep(synth: ShellStep, accountId
           commands: [ 'n 16' ],
         },
         pre_build: {
-          commands: '$(aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com)',
+          commands: [ 'echo "FIRST VER aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com)"',
+            ' echo "SECOND VER aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com)"',
+            'aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com)' ],
         },
         build: {
           commands: [
@@ -97,12 +100,12 @@ export function createServiceImageBuildCodeBuildStep(synth: ShellStep, accountId
             'git config --global url."git@github.com:".insteadOf "https://github.com/"',
             'npm install',
             'npm run build',
-            'docker build -t $IMAGE_REPO_NAME .',
-            'docker tag $IMAGE_REPO_NAME:$IMAGE_TAG $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG',
+            'docker build -t ${IMAGE_REPO_NAME} .',
+            'docker tag ${IMAGE_REPO_NAME}:${IMAGE_TAG} ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${IMAGE_REPO_NAME}:${IMAGE_TAG}',
           ],
         },
         post_build: {
-          commands: 'docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$IMAGE_REPO_NAME:latest',
+          commands: 'docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${IMAGE_REPO_NAME}:${IMAGE_TAG}',
         },
       },
     }),
