@@ -33,6 +33,9 @@ export type TrackingPackage = {
  * Object containing the required data to set up a pipeline.
  *
  * @remarks pipelineSelfMutation defaults to true. For new pipeline, disabling this may make development easier;
+ * @remarks githubSshPrivateKey is retrieved from org management account parameter store. TODO: should be pipeline-internally retrieved from secrets manager
+ *          // https://app.zenhub.com/workspace/o/earnaha/api-core/issues/1763
+ *
  * deploymentWaitTimeMins. This is the time between ECR image publish and integration test begins
  * // TODO: introduce health check instead https://app.zenhub.com/workspaces/back-edtech-623a878cdf3d780017775a34/issues/earnaha/api-core/1709
  *
@@ -44,6 +47,7 @@ export interface BaseAhaPipelineInfo {
   readonly pipelineAccount: string;
   readonly pipelineSelfMutation?: boolean;
   readonly deploymentWaitTimeMins: number;
+  readonly githubSshPrivateKey: string;
 }
 
 export interface DeploymentGroupCreationProps {
@@ -77,10 +81,11 @@ export function createServiceImageBuildCodeBuildStep(synth: ShellStep, accountId
           'AWS_REGION': region,
           'IMAGE_TAG': 'latest',
         },
+
         // TODO: use cross-account parameter-store or make new for each env
-        'parameter-store': {
-          'build_ssh_key': "/poc-test/github-key",
-        },
+        // 'parameter-store': {
+        //   'build_ssh_key': "/poc-test/github-key",
+        // },
       },
       phases: {
         install: {
@@ -97,7 +102,7 @@ export function createServiceImageBuildCodeBuildStep(synth: ShellStep, accountId
         build: {
           commands: [
             'mkdir -p ~/.ssh',
-            'echo "$build_ssh_key" > ~/.ssh/id_ed25519',
+            'echo "${SSH_PRIVATE_KEY}" > ~/.ssh/id_ed25519',
             'chmod 600 ~/.ssh/id_ed25519',
             'ssh-keygen -F github.com || ssh-keyscan github.com >>~/.ssh/known_hosts',
             'git config --global url."git@github.com:".insteadOf "https://github.com/"',
@@ -146,18 +151,15 @@ export function buildSynthStep(trackingPackages: TrackingPackage[], service: SER
       'cd cdk',
       // 'git init',
       'mkdir -p ~/.ssh',
-      'echo "$build_ssh_key" > ~/.ssh/id_ed25519',
+      'echo "${SSH_PRIVATE_KEY}" > ~/.ssh/id_ed25519',
       'chmod 600 ~/.ssh/id_ed25519',
       'ssh-keygen -F github.com || ssh-keyscan github.com >>~/.ssh/known_hosts',
       'git config --global url."git@github.com:".insteadOf "https://github.com/"',
       'npm install',
-      // 'ls -al',
-      // 'pwd',
       // TODO: support both single env and pipeline
       'export DEV_ACCOUNT=083784680548',
       'echo $DEV_ACCOUNT',
       'npm run build -- -v',
-      // 'ls -al cdk.out',
     ],
   });
 }

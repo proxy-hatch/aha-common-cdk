@@ -19,6 +19,7 @@ import {
 import { createStackCreationInfo } from '../../util';
 import { BuildSpec } from 'aws-cdk-lib/aws-codebuild';
 import { PolicyStatement } from 'aws-cdk-lib/aws-iam';
+import { BuildEnvironmentVariableType } from 'aws-cdk-lib/aws-codebuild/lib/project';
 
 /**
  *  Complete single-env pipeline configuration
@@ -63,12 +64,13 @@ export class AhaSingleEnvPipelineStack extends Stack {
       synth: this.synthStep,
       synthCodeBuildDefaults: {
         partialBuildSpec: BuildSpec.fromObject({
-          env: {
-            // TODO: use cross-account parameter-store or make new for each env
-            'parameter-store': {
-              'build_ssh_key': "/poc-test/github-key",
-            },
-          },
+          // env: {
+
+          // TODO: use cross-account parameter-store or make new for each env
+          // 'parameter-store': {
+          //   'build_ssh_key': "/poc-test/github-key",
+          // },
+          // },
           phases: {
             install: {
               "runtime-versions": {
@@ -80,6 +82,14 @@ export class AhaSingleEnvPipelineStack extends Stack {
         }),
       },
       codeBuildDefaults: {
+        buildEnvironment: {
+          environmentVariables: {
+            "SSH_PRIVATE_KEY": {
+              type: BuildEnvironmentVariableType.PLAINTEXT,
+              value: this.props.pipelineInfo.githubSshPrivateKey,
+            },
+          },
+        },
         rolePolicy: [
           new PolicyStatement({
             actions: [ 'ssm:GetParameters' ],
