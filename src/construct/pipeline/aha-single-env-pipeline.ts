@@ -60,8 +60,7 @@ export class AhaSingleEnvPipelineStack extends Stack {
     this.pipeline = new CodePipeline(this, 'Pipeline', {
       crossAccountKeys: true, // allow multi-account envs
       selfMutation: props.pipelineInfo.pipelineSelfMutation ?? true,
-      dockerEnabledForSelfMutation: true,   // allow CodeBuild to use Docker
-      dockerEnabledForSynth: true,  // allow CodeBuild to use Docker
+      // dockerEnabledForSynth: true,  // allow CodeBuild to use Docker
       synth: this.synthStep,
       synthCodeBuildDefaults: {
         partialBuildSpec: BuildSpec.fromObject({

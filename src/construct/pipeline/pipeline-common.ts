@@ -65,6 +65,9 @@ export function createServiceImageBuildCodeBuildStep(synth: ShellStep, accountId
   return new CodeBuildStep(`Build and publish service image`, {
     input: synth.addOutputDirectory('./'),
     commands: [],
+    buildEnvironment: {
+      privileged: true,
+    },
     partialBuildSpec: BuildSpec.fromObject({
       version: '0.2',
       env: {
