@@ -1,12 +1,12 @@
-import { Construct } from "constructs";
-import { Stack, StackProps, Stage } from "aws-cdk-lib";
-import { CodePipeline, ShellStep, Step } from "aws-cdk-lib/pipelines";
+import { Construct } from 'constructs';
+import { Stack, StackProps, Stage } from 'aws-cdk-lib';
+import { CodePipeline, ShellStep, Step } from 'aws-cdk-lib/pipelines';
 import {
   AHA_DEFAULT_REGION,
   REGION, StackCreationInfo,
   STAGE,
-} from "../../constant";
-import { createStackCreationInfo, getAccountInfo, getStagesForService } from "../../util";
+} from '../../constant';
+import { createStackCreationInfo, getAccountInfo, getStagesForService } from '../../util';
 import {
   BaseAhaPipelineInfo,
   buildSynthStep,
@@ -15,7 +15,7 @@ import {
   DeploymentGroupCreationProps,
   getEcrName,
   TrackingPackage,
-} from "./pipeline-common";
+} from './pipeline-common';
 import { StringParameter } from 'aws-cdk-lib/aws-ssm';
 import { BuildEnvironmentVariableType, BuildSpec } from 'aws-cdk-lib/aws-codebuild';
 import { PolicyStatement } from 'aws-cdk-lib/aws-iam';
@@ -74,7 +74,7 @@ export class AhaPipelineStack extends Stack {
       synthCodeBuildDefaults: {
         buildEnvironment: {
           environmentVariables: {
-            "DEV_ACCOUNT": {
+            'DEV_ACCOUNT': {
               type: BuildEnvironmentVariableType.PLAINTEXT,
               value: props.pipelineInfo.pipelineAccount,
             },
@@ -88,8 +88,8 @@ export class AhaPipelineStack extends Stack {
             // TODO: directly use nodejs 16 when CodeBuild with CodePipeline has official support
             // https://github.com/aws/aws-codebuild-docker-images/issues/490
             install: {
-              "runtime-versions": {
-                nodejs: "14",
+              'runtime-versions': {
+                nodejs: '14',
               },
               commands: [ 'n 16' ],
             },
@@ -97,7 +97,7 @@ export class AhaPipelineStack extends Stack {
         }),
         buildEnvironment: {
           environmentVariables: {
-            "SSH_PRIVATE_KEY": {
+            'SSH_PRIVATE_KEY': {
               type: BuildEnvironmentVariableType.PLAINTEXT,
               value: githubSshPrivateKey,
             },
@@ -129,7 +129,7 @@ export class AhaPipelineStack extends Stack {
    * @param deploymentStage - The collection of infrastructure stacks for this env
    * @param stackCreationInfo - the env that infrastructure stacks is being deployed to
    */
-  public addDeploymentStage(deploymentStage: Stage, stackCreationInfo: StackCreationInfo): void {
+  public addDeploymentStage(stackCreationInfo: StackCreationInfo, deploymentStage: Stage): void {
 
     this.pipeline.addStage(deploymentStage,
         {
