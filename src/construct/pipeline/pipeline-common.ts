@@ -140,7 +140,7 @@ export function buildSynthStep(trackingPackages: TrackingPackage[], service: SER
       'git config --global url."git@github.com:".insteadOf "https://github.com/"',
       'npm install',
       // TODO: support both single env and pipeline
-      'export DEV_ACCOUNT=083784680548',
+      'export DEV_ACCOUNT=275636488910',
       'echo $DEV_ACCOUNT',
       'npm run build -- -v',
     ],
