@@ -66,6 +66,16 @@ export class AhaSingleEnvPipelineStack extends Stack {
     this.pipeline = new CodePipeline(this, 'Pipeline', {
       crossAccountKeys: true, // allow multi-account envs
       selfMutation: props.pipelineInfo.pipelineSelfMutation ?? true,
+      synthCodeBuildDefaults: {
+        buildEnvironment: {
+          environmentVariables: {
+            "DEV_ACCOUNT": {
+              type: BuildEnvironmentVariableType.PLAINTEXT,
+              value: props.pipelineInfo.pipelineAccount,
+            },
+          },
+        },
+      },
       synth: this.synthStep,
       codeBuildDefaults: {
         partialBuildSpec: BuildSpec.fromObject({

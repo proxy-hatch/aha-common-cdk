@@ -132,16 +132,13 @@ export function buildSynthStep(trackingPackages: TrackingPackage[], service: SER
     primaryOutputDirectory: 'cdk/cdk.out',
     commands: [
       'cd cdk',
-      // 'git init',
       'mkdir -p ~/.ssh',
       'echo "${SSH_PRIVATE_KEY}" > ~/.ssh/id_ed25519',
       'chmod 600 ~/.ssh/id_ed25519',
       'ssh-keygen -F github.com || ssh-keyscan github.com >>~/.ssh/known_hosts',
       'git config --global url."git@github.com:".insteadOf "https://github.com/"',
       'npm install',
-      // TODO: support both single env and pipeline
-      'export DEV_ACCOUNT=275636488910',
-      'echo $DEV_ACCOUNT',
+      'echo "detecting pipeline account ${DEV_ACCOUNT}"',
       'npm run build -- -v',
     ],
   });
