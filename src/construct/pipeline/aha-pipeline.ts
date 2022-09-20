@@ -1,5 +1,5 @@
 import { Construct } from "constructs";
-import { RemovalPolicy, Stack, StackProps, Stage } from "aws-cdk-lib";
+import { Stack, StackProps, Stage } from "aws-cdk-lib";
 import { CodePipeline, ShellStep, Step } from "aws-cdk-lib/pipelines";
 import {
   AHA_DEFAULT_REGION,
@@ -7,18 +7,18 @@ import {
   STAGE,
 } from "../../constant";
 import { createStackCreationInfo, getAccountInfo, getStagesForService } from "../../util";
-import { Repository } from "aws-cdk-lib/aws-ecr";
 import {
   BaseAhaPipelineInfo,
   buildSynthStep,
-  createDeploymentWaitStateMachine,
+  createEcrRepository,
   createServiceImageBuildCodeBuildStep,
   DeploymentGroupCreationProps,
-  DeploymentSfnStep,
   getEcrName,
   TrackingPackage,
 } from "./pipeline-common";
-import { StateMachine } from 'aws-cdk-lib/aws-stepfunctions';
+import { StringParameter } from 'aws-cdk-lib/aws-ssm';
+import { BuildEnvironmentVariableType, BuildSpec } from 'aws-cdk-lib/aws-codebuild';
+import { PolicyStatement } from 'aws-cdk-lib/aws-iam';
 
 /**
  * skipProdStages defaults to false.
@@ -39,7 +39,7 @@ export interface AhaPipelineProps extends StackProps {
 /**
  * Creates a CDK-managed pipeline for Aha back-end service, built with CodeBuild
  *
- * @remarks Skips alpha stage, also able to skip prod stage via
+ * @remarks Skips alpha stage, also able to skip prod stage via @link{AhaPipelineInfo.skipProdStages}
  * @remarks also creates ECR image repo for each stage of service.
  *
  * @param stage - The Aha stage this deployment is for
@@ -51,30 +51,80 @@ export class AhaPipelineStack extends Stack {
   public readonly pipeline: CodePipeline;
   private readonly props: AhaPipelineProps;
   private readonly synthStep: ShellStep;
-  private readonly deploymentWaitStateMachine: StateMachine;
+
+  // private readonly deploymentWaitStateMachine: StateMachine;
 
   constructor(scope: Construct, id: string, props: AhaPipelineProps) {
     super(scope, id, { env: { region: REGION.APN1, account: props.pipelineInfo.pipelineAccount } });
     this.props = props;
 
-    this.setDeploymentGroupCreationProps(props);
+    this.buildDeploymentGroupCreationProps(props);
+
     this.createEcrRepositories();
+
+    // githubSshPrivateKey is retrieved from pipeline account parameter store.
+    // new pipeline account must create this manually at https://ap-northeast-1.console.aws.amazon.com/systems-manager/parameters/?region=ap-northeast-1
+    // TODO: should be retrieved from central account secrets manager https://app.zenhub.com/workspace/o/earnaha/api-core/issues/1763
+    const githubSshPrivateKey = StringParameter.valueForStringParameter(this, 'github-ssh-private-key');
 
     this.synthStep = buildSynthStep(props.trackingPackages, props.pipelineInfo.service, STAGE.BETA);
     this.pipeline = new CodePipeline(this, 'Pipeline', {
-      crossAccountKeys: true, // allow multi-account envs
+      crossAccountKeys: true, // allow multi-account envs by KMS encrypting artifact bucket
       selfMutation: props.pipelineInfo.pipelineSelfMutation ?? true,
-      dockerEnabledForSynth: true,  // allow CodeBuild to use Docker
+      synthCodeBuildDefaults: {
+        buildEnvironment: {
+          environmentVariables: {
+            "DEV_ACCOUNT": {
+              type: BuildEnvironmentVariableType.PLAINTEXT,
+              value: props.pipelineInfo.pipelineAccount,
+            },
+          },
+        },
+      },
       synth: this.synthStep,
+      codeBuildDefaults: {
+        partialBuildSpec: BuildSpec.fromObject({
+          phases: {
+            // TODO: directly use nodejs 16 when CodeBuild with CodePipeline has official support
+            // https://github.com/aws/aws-codebuild-docker-images/issues/490
+            install: {
+              "runtime-versions": {
+                nodejs: "14",
+              },
+              commands: [ 'n 16' ],
+            },
+          },
+        }),
+        buildEnvironment: {
+          environmentVariables: {
+            "SSH_PRIVATE_KEY": {
+              type: BuildEnvironmentVariableType.PLAINTEXT,
+              value: githubSshPrivateKey,
+            },
+          },
+        },
+        rolePolicy: [
+          new PolicyStatement({
+            actions: [ 'ssm:GetParameters' ],
+            resources: [ '*' ],
+          }),
+          new PolicyStatement({
+            actions: [ 'ecr:*' ],
+            resources: [ '*' ],
+          }),
+        ],
+      },
     });
 
-    this.deploymentWaitStateMachine = createDeploymentWaitStateMachine(this, props.pipelineInfo.service, props.pipelineInfo.deploymentWaitTimeMins);
+    // this.deploymentWaitStateMachine = createDeploymentWaitStateMachine(this, props.pipelineInfo.service, props.pipelineInfo.deploymentWaitTimeMins);
   }
 
   /**
    * Adds the deployment stacks in a single stage to the pipeline env. User of this construct is expected to call this method for all stages.
    *
-   * @remarks also adds a CodeBuild stage to publish src code to ECR named `${ props.stackCreationInfo.stackPrefix }-Ecr`
+   * @remarks also add steps:
+   * pre-stack deployment: publish src code docker image to ECR named `${ props.stackCreationInfo.stackPrefix }-Ecr`
+   * TODO: post-stack deployment: 1. insert deployment wait time 2. run integration test
    *
    * @param deploymentStage - The collection of infrastructure stacks for this env
    * @param stackCreationInfo - the env that infrastructure stacks is being deployed to
@@ -83,7 +133,7 @@ export class AhaPipelineStack extends Stack {
 
     this.pipeline.addStage(deploymentStage,
         {
-          post:
+          pre:
               Step.sequence([
                 createServiceImageBuildCodeBuildStep(
                     this.synthStep,
@@ -91,17 +141,25 @@ export class AhaPipelineStack extends Stack {
                     stackCreationInfo.region,
                     getEcrName(stackCreationInfo.stackPrefix, this.props.pipelineInfo.service),
                 ),
-                // used to wait for deployment completion
-                // TODO: use deployment health check instead https://app.zenhub.com/workspaces/back-edtech-623a878cdf3d780017775a34/issues/earnaha/api-core/1709
-                new DeploymentSfnStep(this.deploymentWaitStateMachine),
-                // TODO: Timmy - test Jenkins integration
-                // new AhaJenkinsIntegrationTestStep(this.props.pipelineInfo.service, stackCreationInfo.stage),
               ]),
+          // post:
+          //     Step.sequence([
+          //       createServiceImageBuildCodeBuildStep(
+          //           this.synthStep,
+          //           stackCreationInfo.account,
+          //           stackCreationInfo.region,
+          //           getEcrName(stackCreationInfo.stackPrefix, this.props.pipelineInfo.service),
+          //       ),
+          //       // used to wait for deployment completion
+          //       // TODO: use deployment health check instead https://app.zenhub.com/workspaces/back-edtech-623a878cdf3d780017775a34/issues/earnaha/api-core/1709
+          //       new DeploymentSfnStep(this.deploymentWaitStateMachine),
+          //       // TODO: Timmy - test Jenkins integration
+          //       // new AhaJenkinsIntegrationTestStep(this.props.pipelineInfo.service, this.props.pipelineInfo.stage),
+          //     ]),
         });
-
   }
 
-  private setDeploymentGroupCreationProps(props: AhaPipelineProps): void {
+  private buildDeploymentGroupCreationProps(props: AhaPipelineProps): void {
     const { service, skipProdStages } = props.pipelineInfo;
 
     getStagesForService(service).forEach(stage => {
@@ -123,16 +181,7 @@ export class AhaPipelineStack extends Stack {
 
   private createEcrRepositories(): void {
     this.deploymentGroupCreationProps.forEach(props => {
-      const stageEcrName = getEcrName(props.stackCreationInfo.stackPrefix, this.props.pipelineInfo.service);
-      new Repository(this, stageEcrName, {
-            repositoryName: stageEcrName,
-            removalPolicy: RemovalPolicy.DESTROY,
-            lifecycleRules: [ {
-              description: 'limit max image count',
-              maxImageCount: 100,
-            } ],
-          },
-      );
+      createEcrRepository(this, props.stackCreationInfo.stackPrefix, this.props.pipelineInfo.service);
     });
   }
 

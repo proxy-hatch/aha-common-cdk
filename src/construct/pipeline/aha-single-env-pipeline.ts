@@ -1,16 +1,15 @@
 import { Construct } from "constructs";
-import { RemovalPolicy, Stack, StackProps, Stage } from "aws-cdk-lib";
+import { Stack, StackProps, Stage } from "aws-cdk-lib";
 import { CodePipeline, ShellStep, Step } from "aws-cdk-lib/pipelines";
 import {
   AHA_DEFAULT_REGION,
   REGION, StackCreationInfo,
   STAGE,
 } from "../../constant";
-import { Repository } from "aws-cdk-lib/aws-ecr";
 import assert from "node:assert";
 import {
   BaseAhaPipelineInfo,
-  buildSynthStep,
+  buildSynthStep, createEcrRepository,
   createServiceImageBuildCodeBuildStep,
   DeploymentGroupCreationProps,
   getEcrName,
@@ -55,7 +54,8 @@ export class AhaSingleEnvPipelineStack extends Stack {
     super(scope, id, { env: { region: REGION.APN1, account: props.pipelineInfo.pipelineAccount } });
 
     this.deploymentGroupCreationProps = this.buildSingleStageDeploymentGroupCreationProps(this.props.pipelineInfo.pipelineAccount, props.pipelineInfo.stage);
-    this.createEcrRepository();
+
+    createEcrRepository(this, this.deploymentGroupCreationProps.stackCreationInfo.stackPrefix, props.pipelineInfo.service);
 
     // githubSshPrivateKey is retrieved from pipeline account parameter store.
     // new pipeline account must create this manually at https://ap-northeast-1.console.aws.amazon.com/systems-manager/parameters/?region=ap-northeast-1
@@ -64,7 +64,7 @@ export class AhaSingleEnvPipelineStack extends Stack {
 
     this.synthStep = buildSynthStep(props.trackingPackages, props.pipelineInfo.service, props.pipelineInfo.stage);
     this.pipeline = new CodePipeline(this, 'Pipeline', {
-      crossAccountKeys: true, // allow multi-account envs
+      crossAccountKeys: false, // allow multi-account envs by KMS encrypting artifact bucket
       selfMutation: props.pipelineInfo.pipelineSelfMutation ?? true,
       synthCodeBuildDefaults: {
         buildEnvironment: {
@@ -117,7 +117,9 @@ export class AhaSingleEnvPipelineStack extends Stack {
   /**
    * Adds the deployment stacks in a single stage to the pipeline env.
    *
-   * @remarks also add steps post-stack deployment: 1. publish src code to ECR named `${ props.stackCreationInfo.stackPrefix }-Ecr` 2. insert deployment wait time 3. run integration test
+   * @remarks also add steps:
+   * pre-stack deployment: publish src code docker image to ECR named `${ props.stackCreationInfo.stackPrefix }-Ecr`
+   * TODO: post-stack deployment: 1. insert deployment wait time 2. run integration test
    *
    * @param stackCreationInfo - the env that infrastructure stacks is being deployed to
    * @param deploymentStage - The collection of infrastructure stacks for this env
@@ -163,20 +165,6 @@ export class AhaSingleEnvPipelineStack extends Stack {
           AHA_DEFAULT_REGION,
           stage),
     };
-  }
-
-  private createEcrRepository(): void {
-    const stageEcrName = getEcrName(
-        this.deploymentGroupCreationProps.stackCreationInfo.stackPrefix, this.props.pipelineInfo.service);
-    new Repository(this, stageEcrName, {
-          repositoryName: stageEcrName,
-          removalPolicy: RemovalPolicy.DESTROY,
-          lifecycleRules: [ {
-            description: 'limit max image count',
-            maxImageCount: 100,
-          } ],
-        },
-    );
   }
 
 }

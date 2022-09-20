@@ -19,7 +19,8 @@ import { getAccountInfo } from "../../util";
 import * as cpactions from "aws-cdk-lib/aws-codepipeline-actions";
 import { IStage } from "aws-cdk-lib/aws-codepipeline";
 import { StateMachine, Succeed, Wait, WaitTime } from "aws-cdk-lib/aws-stepfunctions";
-import { Duration, Stack } from "aws-cdk-lib";
+import { Duration, RemovalPolicy, Stack } from "aws-cdk-lib";
+import { Repository } from 'aws-cdk-lib/aws-ecr';
 
 /**
  * When branch is not provided, defaults to track main branch
@@ -61,6 +62,21 @@ export interface DeploymentGroupCreationProps {
 export function getEcrName(stackPrefix: string, service: SERVICE) {
   return `${ stackPrefix }-${ service }-ecr`.toLowerCase();
 }
+
+export function createEcrRepository(scope: Stack, stackCreationPrefix: string, service: SERVICE): void {
+  const stageEcrName = getEcrName(
+      stackCreationPrefix, service);
+  new Repository(scope, stageEcrName, {
+        repositoryName: stageEcrName,
+        removalPolicy: RemovalPolicy.DESTROY,
+        lifecycleRules: [ {
+          description: 'limit max image count',
+          maxImageCount: 100,
+        } ],
+      },
+  );
+}
+
 
 export function createServiceImageBuildCodeBuildStep(synth: ShellStep, accountId: string, region: string, ecrName: string) {
   return new CodeBuildStep(`Build and publish service image`, {
