@@ -69,9 +69,6 @@ export function getAccountIdsForService(service: SERVICE): string[] {
 
   for (let key of Object.keys(environmentConfiguration)) {
     if (service in environmentConfiguration[<STAGE>(key)]) {
-      // DEBUG
-      console.log(`retrieved accountInfo: ${ JSON.stringify(environmentConfiguration[<STAGE>(key)][service]) } ! `);
-      console.log(`adding account to getAccountIdsForService return list: ${ environmentConfiguration[<STAGE>(key)][service].accountId } ! `);
       accountIds.push(environmentConfiguration[<STAGE>(key)][service].accountId);
     }
   }

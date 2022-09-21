@@ -84,8 +84,6 @@ function buildCrossAccountEcrResourcePolicy(service: SERVICE) {
   // TODO: restrict to only the accountIds the pipeline is responsible for, instead of all stages
   let accountIdPrincipals: AccountPrincipal[] = [];
   getAccountIdsForService(service).forEach(accountId => {
-    // DEBUG
-    console.log(`adding account to principal: ${ accountId } ! `);
     accountIdPrincipals.push(new AccountPrincipal(accountId));
   });
 

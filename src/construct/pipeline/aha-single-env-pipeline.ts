@@ -138,7 +138,7 @@ export class AhaSingleEnvPipelineStack extends Stack {
                     stackCreationInfo.region,
                     getEcrName(stackCreationInfo.stackPrefix, this.props.pipelineInfo.service),
                 ),
-              ]),
+              ]),// DEBUG
           // post:
           //     Step.sequence([
           //       createServiceImageBuildCodeBuildStep(
