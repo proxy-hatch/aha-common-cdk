@@ -126,18 +126,18 @@ export class AhaPipelineStack extends Stack {
    * pre-stack deployment: publish src code docker image to ECR named `${ props.stackCreationInfo.stackPrefix }-Ecr`
    * TODO: post-stack deployment: 1. insert deployment wait time 2. run integration test
    *
-   * @param deploymentStage - The collection of infrastructure stacks for this env
+   * @param deploymentStacksStage - The collection of infrastructure stacks for this env
    * @param stackCreationInfo - the env that infrastructure stacks is being deployed to
    */
-  public addDeploymentStage(stackCreationInfo: StackCreationInfo, deploymentStage: Stage): void {
+  public addDeploymentStage(stackCreationInfo: StackCreationInfo, deploymentStacksStage: Stage): void {
 
-    this.pipeline.addStage(deploymentStage,
+    this.pipeline.addStage(deploymentStacksStage,
         {
           pre:
               Step.sequence([
                 createServiceImageBuildCodeBuildStep(
                     this.synthStep,
-                    stackCreationInfo.account,
+                    this.props.pipelineInfo.pipelineAccount,
                     stackCreationInfo.region,
                     getEcrName(stackCreationInfo.stackPrefix, this.props.pipelineInfo.service),
                 ),

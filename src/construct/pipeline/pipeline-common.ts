@@ -95,7 +95,7 @@ function buildCrossAccountEcrPolicy(service: SERVICE) {
 }
 
 
-export function createServiceImageBuildCodeBuildStep(synth: ShellStep, accountId: string, region: string, ecrName: string) {
+export function createServiceImageBuildCodeBuildStep(synth: ShellStep, ecrAccountId: string, region: string, ecrName: string) {
   return new CodeBuildStep(`Build and publish service image`, {
     input: synth.addOutputDirectory('./'),
     commands: [],
@@ -106,7 +106,7 @@ export function createServiceImageBuildCodeBuildStep(synth: ShellStep, accountId
       version: '0.2',
       env: {
         variables: {
-          'AWS_ACCOUNT_ID': accountId,
+          'AWS_ACCOUNT_ID': ecrAccountId,
           'IMAGE_REPO_NAME': ecrName,
           'AWS_REGION': region,
           'IMAGE_TAG': 'latest',
