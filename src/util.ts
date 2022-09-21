@@ -10,10 +10,10 @@
  * @returns a {@link StackCreationInfo} object
  *
  */
-import { AHA_DEFAULT_REGION, SERVICE, StackCreationInfo, STAGE } from "./constant";
-import { AccountInfo, environmentConfiguration, StageInfo } from "./environment-configuration";
-import assert from "assert";
-import { Environment } from "aws-cdk-lib";
+import { AHA_DEFAULT_REGION, SERVICE, StackCreationInfo, STAGE } from './constant';
+import { AccountInfo, environmentConfiguration, StageInfo } from './environment-configuration';
+import assert from 'assert';
+import { Environment } from 'aws-cdk-lib';
 
 export function createStackCreationInfo(account: string, region: string = AHA_DEFAULT_REGION, stage?: STAGE): StackCreationInfo {
   return {
@@ -50,33 +50,42 @@ export function getStagesForService(service: SERVICE): STAGE[] {
   let stages: STAGE[] = [];
   for (let key of Object.keys(environmentConfiguration)) {
     if (service in environmentConfiguration[<STAGE>(key)]) {
-      stages.push(<STAGE>(key))
+      stages.push(<STAGE>(key));
     }
   }
 
   return stages;
 }
-//
-// /**
-//  * Returns true if a service has a stage configured in @link{environmentConfiguration}
-//  *
-//  * @returns a list of {@link STAGE} object
-//  *
-//  * @param service {@link SERVICE}
-//  * @param stage {@link STAGE}
-//  */
-// export function isStageExistForService(service: SERVICE, stage: STAGE): boolean {
-//   return getStagesForService(service).some(aStage => {
-//     return aStage === stage;
-//   });
-// }
+
+/**
+ * Returns the accountIds that a service has @link{environmentConfiguration} configured
+ *
+ * @returns list of accountIds
+ *
+ * @param service {@link SERVICE}
+ */
+export function getAccountIdsForService(service: SERVICE): string[] {
+  let accountIds = [];
+
+  for (let key of Object.keys(environmentConfiguration)) {
+    if (service in environmentConfiguration[<STAGE>(key)]) {
+      accountIds.push(environmentConfiguration[<STAGE>(key)][service].accountId);
+    }
+  }
+
+  return accountIds;
+}
 
 export function getAccountInfo(service: SERVICE, stage: STAGE): AccountInfo {
   const stageInfo = getStageInfo(stage);
   const accountInfo = stageInfo[service];
 
-  assert.ok(stageInfo[service], `AccountInfo for ${ service }-${ stage } is undefined`)
+  assert.ok(stageInfo[service], `AccountInfo for ${ service }-${ stage } is undefined`);
   return accountInfo;
+}
+
+export function getAccountIdForService(service: SERVICE, stage: STAGE): string {
+  return getAccountInfo(service, stage).accountId;
 }
 
 export function getStageInfo(stage: STAGE): StageInfo {

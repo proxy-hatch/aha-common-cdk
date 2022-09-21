@@ -3,7 +3,7 @@ import {
   SERVICE,
   StackCreationInfo,
   STAGE,
-} from "../../constant";
+} from '../../constant';
 import {
   CodeBuildStep, CodePipelineActionFactoryResult,
   CodePipelineSource,
@@ -11,16 +11,17 @@ import {
   ProduceActionOptions,
   ShellStep,
   Step,
-} from "aws-cdk-lib/pipelines";
-import assert from "node:assert";
-import { IFileSetProducer } from "aws-cdk-lib/pipelines/lib/blueprint/file-set";
-import { BuildSpec } from "aws-cdk-lib/aws-codebuild";
-import { getAccountInfo } from "../../util";
-import * as cpactions from "aws-cdk-lib/aws-codepipeline-actions";
-import { IStage } from "aws-cdk-lib/aws-codepipeline";
-import { StateMachine, Succeed, Wait, WaitTime } from "aws-cdk-lib/aws-stepfunctions";
-import { Duration, RemovalPolicy, Stack } from "aws-cdk-lib";
+} from 'aws-cdk-lib/pipelines';
+import assert from 'node:assert';
+import { IFileSetProducer } from 'aws-cdk-lib/pipelines/lib/blueprint/file-set';
+import { BuildSpec } from 'aws-cdk-lib/aws-codebuild';
+import { getAccountIdsForService, getAccountInfo } from '../../util';
+import * as cpactions from 'aws-cdk-lib/aws-codepipeline-actions';
+import { IStage } from 'aws-cdk-lib/aws-codepipeline';
+import { StateMachine, Succeed, Wait, WaitTime } from 'aws-cdk-lib/aws-stepfunctions';
+import { Duration, RemovalPolicy, Stack } from 'aws-cdk-lib';
 import { Repository } from 'aws-cdk-lib/aws-ecr';
+import { AccountPrincipal, Effect, PolicyStatement } from 'aws-cdk-lib/aws-iam';
 
 /**
  * When branch is not provided, defaults to track main branch
@@ -66,7 +67,7 @@ export function getEcrName(stackPrefix: string, service: SERVICE) {
 export function createEcrRepository(scope: Stack, stackCreationPrefix: string, service: SERVICE): void {
   const stageEcrName = getEcrName(
       stackCreationPrefix, service);
-  new Repository(scope, stageEcrName, {
+  const ecr = new Repository(scope, stageEcrName, {
         repositoryName: stageEcrName,
         removalPolicy: RemovalPolicy.DESTROY,
         lifecycleRules: [ {
@@ -75,6 +76,22 @@ export function createEcrRepository(scope: Stack, stackCreationPrefix: string, s
         } ],
       },
   );
+
+  ecr.addToResourcePolicy(buildCrossAccountEcrPolicy(service));
+}
+
+function buildCrossAccountEcrPolicy(service: SERVICE) {
+  // TODO: restrict to only the accountIds the pipeline is responsible for, instead of all stages
+  let accountIdPrincipals = [];
+  for (let accountId in getAccountIdsForService(service)) {
+    accountIdPrincipals.push(new AccountPrincipal(accountId));
+  }
+
+  return new PolicyStatement({
+    effect: Effect.ALLOW,
+    actions: [ 'ecr:*' ],
+    principals: accountIdPrincipals,
+  });
 }
 
 
@@ -121,7 +138,7 @@ export function createServiceImageBuildCodeBuildStep(synth: ShellStep, accountId
 }
 
 export function buildSynthStep(trackingPackages: TrackingPackage[], service: SERVICE, stage: STAGE): ShellStep {
-  assert.ok(trackingPackages.length > 0, "number of tracking packages cannot be 0");
+  assert.ok(trackingPackages.length > 0, 'number of tracking packages cannot be 0');
 
   const githubConnectionArn = getAccountInfo(service, stage).githubConnectionArn!;
   assert.ok(githubConnectionArn, `Github Connection Arn not found for ${ service }, ${ stage }. Is your pipeline hosted here?`);
@@ -166,7 +183,7 @@ export function createDeploymentWaitStateMachine(scope: Stack, service: SERVICE,
     definition: new Wait(scope, 'Wait', {
       time: WaitTime.duration(Duration.minutes(waitTimeMins)),
       comment: `wait ${ waitTimeMins }mins for deployment`,
-    }).next(new Succeed(scope, "Completed waiting for deployment")),
+    }).next(new Succeed(scope, 'Completed waiting for deployment')),
   });
 }
 
