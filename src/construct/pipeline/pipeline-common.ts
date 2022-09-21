@@ -77,13 +77,15 @@ export function createEcrRepository(scope: Stack, stackCreationPrefix: string, s
       },
   );
 
-  ecr.addToResourcePolicy(buildCrossAccountEcrPolicy(service));
+  ecr.addToResourcePolicy(buildCrossAccountEcrResourcePolicy(service));
 }
 
-function buildCrossAccountEcrPolicy(service: SERVICE) {
+function buildCrossAccountEcrResourcePolicy(service: SERVICE) {
   // TODO: restrict to only the accountIds the pipeline is responsible for, instead of all stages
   let accountIdPrincipals = [];
   for (let accountId in getAccountIdsForService(service)) {
+    // DEBUG
+    console.log(`adding account to principal: ${ accountId } ! `);
     accountIdPrincipals.push(new AccountPrincipal(accountId));
   }
 
