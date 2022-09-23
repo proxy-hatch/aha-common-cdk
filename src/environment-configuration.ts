@@ -22,8 +22,10 @@ export type EnvironmentConfiguration = {
 export const environmentConfiguration: EnvironmentConfiguration = {
   [STAGE.ALPHA]: {
     [SERVICE.API_CORE]: {
-      accountId: '275636488910',
-      githubConnectionArn: 'arn:aws:codestar-connections:ap-northeast-1:275636488910:connection/3891f5fb-5d61-4e89-9bc7-3690798b049e',
+      accountId: AHA_ORGANIZATION_ACCOUNT,
+      githubConnectionArn: 'arn:aws:codestar-connections:us-west-2:083784680548:connection/3d6d87d9-1141-4616-9660-872de10ecee2',
+      // accountId: '275636488910',
+      // githubConnectionArn: 'arn:aws:codestar-connections:ap-northeast-1:275636488910:connection/3891f5fb-5d61-4e89-9bc7-3690798b049e',
     },
   },
   [STAGE.BETA]: {
