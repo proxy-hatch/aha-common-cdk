@@ -1,10 +1,9 @@
 import {
-  GITHUB_ACCESS_TOKEN,
   GITHUB_ORGANIZATION_NAME,
   SERVICE,
   StackCreationInfo,
   STAGE,
-} from "../../constant";
+} from '../../constant';
 import {
   CodeBuildStep, CodePipelineActionFactoryResult,
   CodePipelineSource,
@@ -12,15 +11,17 @@ import {
   ProduceActionOptions,
   ShellStep,
   Step,
-} from "aws-cdk-lib/pipelines";
-import assert from "node:assert";
-import { IFileSetProducer } from "aws-cdk-lib/pipelines/lib/blueprint/file-set";
-import { BuildSpec } from "aws-cdk-lib/aws-codebuild";
-import { getAccountInfo } from "../../util";
-import * as cpactions from "aws-cdk-lib/aws-codepipeline-actions";
-import { IStage } from "aws-cdk-lib/aws-codepipeline";
-import { StateMachine, Succeed, Wait, WaitTime } from "aws-cdk-lib/aws-stepfunctions";
-import { Duration, Stack } from "aws-cdk-lib";
+} from 'aws-cdk-lib/pipelines';
+import assert from 'node:assert';
+import { IFileSetProducer } from 'aws-cdk-lib/pipelines/lib/blueprint/file-set';
+import { BuildSpec } from 'aws-cdk-lib/aws-codebuild';
+import { getAccountIdsForService, getAccountInfo } from '../../util';
+import * as cpactions from 'aws-cdk-lib/aws-codepipeline-actions';
+import { IStage } from 'aws-cdk-lib/aws-codepipeline';
+import { StateMachine, Succeed, Wait, WaitTime } from 'aws-cdk-lib/aws-stepfunctions';
+import { Duration, RemovalPolicy, Stack } from 'aws-cdk-lib';
+import { Repository } from 'aws-cdk-lib/aws-ecr';
+import { AccountPrincipal, Effect, PolicyStatement } from 'aws-cdk-lib/aws-iam';
 
 /**
  * When branch is not provided, defaults to track main branch
@@ -34,6 +35,7 @@ export type TrackingPackage = {
  * Object containing the required data to set up a pipeline.
  *
  * @remarks pipelineSelfMutation defaults to true. For new pipeline, disabling this may make development easier;
+ *
  * deploymentWaitTimeMins. This is the time between ECR image publish and integration test begins
  * // TODO: introduce health check instead https://app.zenhub.com/workspaces/back-edtech-623a878cdf3d780017775a34/issues/earnaha/api-core/1709
  *
@@ -62,58 +64,79 @@ export function getEcrName(stackPrefix: string, service: SERVICE) {
   return `${ stackPrefix }-${ service }-ecr`.toLowerCase();
 }
 
-export function createServiceImageBuildCodeBuildStep(synth: ShellStep, accountId: string, region: string, ecrName: string) {
+export function createEcrRepository(scope: Stack, stackCreationPrefix: string, service: SERVICE): void {
+  const stageEcrName = getEcrName(
+      stackCreationPrefix, service);
+  const ecr = new Repository(scope, stageEcrName, {
+        repositoryName: stageEcrName,
+        removalPolicy: RemovalPolicy.DESTROY,
+        lifecycleRules: [ {
+          description: 'limit max image count',
+          maxImageCount: 100,
+        } ],
+      },
+  );
+
+  ecr.addToResourcePolicy(buildCrossAccountEcrResourcePolicy(service));
+}
+
+function buildCrossAccountEcrResourcePolicy(service: SERVICE) {
+  // TODO: restrict to only the accountIds the pipeline is responsible for, instead of all stages
+  let accountIdPrincipals: AccountPrincipal[] = [];
+  getAccountIdsForService(service).forEach(accountId => {
+    accountIdPrincipals.push(new AccountPrincipal(accountId));
+  });
+
+  return new PolicyStatement({
+    effect: Effect.ALLOW,
+    actions: [ 'ecr:*' ],
+    principals: accountIdPrincipals,
+  });
+}
+
+
+export function createServiceImageBuildCodeBuildStep(synth: ShellStep, ecrAccountId: string, region: string, ecrName: string) {
   return new CodeBuildStep(`Build and publish service image`, {
     input: synth.addOutputDirectory('./'),
     commands: [],
+    buildEnvironment: {
+      privileged: true,
+    },
     partialBuildSpec: BuildSpec.fromObject({
       version: '0.2',
       env: {
         variables: {
-          'AWS_ACCOUNT_ID': {
-            value: accountId,
-          },
-          'IMAGE_REPO_NAME': {
-            value: ecrName,
-          },
-          'AWS_REGION': {
-            value: region,
-          },
-          'GITHUB_TOKEN': {
-            value: GITHUB_ACCESS_TOKEN,
-          },
+          'AWS_ACCOUNT_ID': ecrAccountId,
+          'IMAGE_REPO_NAME': ecrName,
+          'AWS_REGION': region,
+          'IMAGE_TAG': 'latest',
         },
       },
       phases: {
-        install: {
-          'runtime-versions': {
-            nodejs: 16,
-          },
-          commands: 'npm install -g typescript"',
-        },
         pre_build: {
-          commands: '$(aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com)',
+          commands: 'aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com',
         },
         build: {
           commands: [
-            'git config --local url."https://$GITHUB_TOKEN@github.com/".insteadOf https://github.com/:',
-            'npm install',
-            'npm run build',
-            'docker build -t $IMAGE_REPO_NAME .',
-            'docker tag $IMAGE_REPO_NAME:$IMAGE_TAG $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG',
+            'mkdir -p ~/.ssh',
+            'echo "${SSH_PRIVATE_KEY}" > ~/.ssh/id_ed25519',
+            'chmod 600 ~/.ssh/id_ed25519',
+            'ssh-keygen -F github.com || ssh-keyscan github.com >>~/.ssh/known_hosts',
+            'git config --global url."git@github.com:".insteadOf "https://github.com/"',
+            'docker build -t ${IMAGE_REPO_NAME} .',
+            'docker tag ${IMAGE_REPO_NAME}:${IMAGE_TAG} ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${IMAGE_REPO_NAME}:${IMAGE_TAG}',
           ],
         },
         post_build: {
-          commands: 'docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$IMAGE_REPO_NAME:latest',
+          commands: 'docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${IMAGE_REPO_NAME}:${IMAGE_TAG}',
         },
       },
     }),
-
   });
 }
 
 export function buildSynthStep(trackingPackages: TrackingPackage[], service: SERVICE, stage: STAGE): ShellStep {
-  assert.ok(trackingPackages.length > 0, "number of tracking packages cannot be 0");
+  assert.ok(trackingPackages.length > 0, 'number of tracking packages cannot be 0');
 
   const githubConnectionArn = getAccountInfo(service, stage).githubConnectionArn!;
   assert.ok(githubConnectionArn, `Github Connection Arn not found for ${ service }, ${ stage }. Is your pipeline hosted here?`);
@@ -139,9 +162,15 @@ export function buildSynthStep(trackingPackages: TrackingPackage[], service: SER
     additionalInputs: additionalInputs,
     primaryOutputDirectory: 'cdk/cdk.out',
     commands: [
-      'npm ci',
-      'npm run build',
-      'npx cdk synth',
+      'cd cdk',
+      'mkdir -p ~/.ssh',
+      'echo "${SSH_PRIVATE_KEY}" > ~/.ssh/id_ed25519',
+      'chmod 600 ~/.ssh/id_ed25519',
+      'ssh-keygen -F github.com || ssh-keyscan github.com >>~/.ssh/known_hosts',
+      'git config --global url."git@github.com:".insteadOf "https://github.com/"',
+      'npm install',
+      'echo "detecting pipeline account ${DEV_ACCOUNT}"',
+      'npm run build -- -v',
     ],
   });
 }
@@ -152,7 +181,7 @@ export function createDeploymentWaitStateMachine(scope: Stack, service: SERVICE,
     definition: new Wait(scope, 'Wait', {
       time: WaitTime.duration(Duration.minutes(waitTimeMins)),
       comment: `wait ${ waitTimeMins }mins for deployment`,
-    }).next(new Succeed(scope, "Completed waiting for deployment")),
+    }).next(new Succeed(scope, 'Completed waiting for deployment')),
   });
 }
 
