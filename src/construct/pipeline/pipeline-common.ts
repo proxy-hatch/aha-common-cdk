@@ -47,6 +47,7 @@ export interface BaseAhaPipelineInfo {
   readonly pipelineAccount: string;
   readonly pipelineSelfMutation?: boolean;
   readonly deploymentWaitTimeMins: number;
+  // readonly containerBuildCmds: string[];
 }
 
 export interface DeploymentGroupCreationProps {
@@ -121,8 +122,9 @@ export function createServiceImageBuildCodeBuildStep(synth: ShellStep, ecrAccoun
             'mkdir -p ~/.ssh',
             'echo "${SSH_PRIVATE_KEY}" > ~/.ssh/id_ed25519',
             'chmod 600 ~/.ssh/id_ed25519',
-            'ssh-keygen -F github.com || ssh-keyscan github.com >>~/.ssh/known_hosts',
+            'ssh-keyscan github.com >>~/.ssh/known_hosts',
             'git config --global url."git@github.com:".insteadOf "https://github.com/"',
+
             'docker build -t ${IMAGE_REPO_NAME} .',
             'docker tag ${IMAGE_REPO_NAME}:${IMAGE_TAG} ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${IMAGE_REPO_NAME}:${IMAGE_TAG}',
           ],
