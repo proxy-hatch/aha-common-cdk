@@ -22,6 +22,7 @@ import { StateMachine, Succeed, Wait, WaitTime } from 'aws-cdk-lib/aws-stepfunct
 import { Duration, RemovalPolicy, Stack } from 'aws-cdk-lib';
 import { Repository } from 'aws-cdk-lib/aws-ecr';
 import { AccountPrincipal, Effect, PolicyStatement } from 'aws-cdk-lib/aws-iam';
+import { AHA_ORGANIZATION_ACCOUNT } from '../../environment-configuration';
 
 /**
  * When branch is not provided, defaults to track main branch
@@ -47,7 +48,7 @@ export interface BaseAhaPipelineInfo {
   readonly pipelineAccount: string;
   readonly pipelineSelfMutation?: boolean;
   readonly deploymentWaitTimeMins: number;
-  // readonly containerBuildCmds: string[];
+  readonly containerImageBuildCmds: string[];
 }
 
 export interface DeploymentGroupCreationProps {
@@ -73,7 +74,7 @@ export function createEcrRepository(scope: Stack, stackCreationPrefix: string, s
         removalPolicy: RemovalPolicy.DESTROY,
         lifecycleRules: [ {
           description: 'limit max image count',
-          maxImageCount: 100,
+          maxImageAge: Duration.days(90),
         } ],
       },
   );
@@ -88,6 +89,9 @@ function buildCrossAccountEcrResourcePolicy(service: SERVICE) {
     accountIdPrincipals.push(new AccountPrincipal(accountId));
   });
 
+  // allow IAM users (in management account) to troubleshoot docker image
+  accountIdPrincipals.push(new AccountPrincipal(AHA_ORGANIZATION_ACCOUNT));
+
   return new PolicyStatement({
     effect: Effect.ALLOW,
     actions: [ 'ecr:*' ],
@@ -96,7 +100,7 @@ function buildCrossAccountEcrResourcePolicy(service: SERVICE) {
 }
 
 
-export function createServiceImageBuildCodeBuildStep(synth: ShellStep, ecrAccountId: string, region: string, ecrName: string) {
+export function createServiceImageBuildCodeBuildStep(synth: ShellStep, ecrAccountId: string, region: string, ecrName: string, containerImageBuildCmds: string[]) {
   return new CodeBuildStep(`Build and publish service image`, {
     input: synth.addOutputDirectory('./'),
     commands: [],
@@ -118,16 +122,11 @@ export function createServiceImageBuildCodeBuildStep(synth: ShellStep, ecrAccoun
           commands: 'aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com',
         },
         build: {
-          commands: [
-            'mkdir -p ~/.ssh',
-            'echo "${SSH_PRIVATE_KEY}" > ~/.ssh/id_ed25519',
-            'chmod 600 ~/.ssh/id_ed25519',
-            'ssh-keyscan github.com >>~/.ssh/known_hosts',
-            'git config --global url."git@github.com:".insteadOf "https://github.com/"',
-
-            'docker build -t ${IMAGE_REPO_NAME} .',
-            'docker tag ${IMAGE_REPO_NAME}:${IMAGE_TAG} ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${IMAGE_REPO_NAME}:${IMAGE_TAG}',
-          ],
+          commands:
+              containerImageBuildCmds.concat([
+                'docker build -t ${IMAGE_REPO_NAME} .',
+                'docker tag ${IMAGE_REPO_NAME}:${IMAGE_TAG} ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${IMAGE_REPO_NAME}:${IMAGE_TAG}',
+              ]),
         },
         post_build: {
           commands: 'docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${IMAGE_REPO_NAME}:${IMAGE_TAG}',
@@ -144,6 +143,7 @@ export function buildSynthStep(trackingPackages: TrackingPackage[], service: SER
   assert.ok(githubConnectionArn, `Github Connection Arn not found for ${ service }, ${ stage }. Is your pipeline hosted here?`);
 
   // track additional packages
+  // not actually reading these, just tracking changes
   let additionalInputs: Record<string, IFileSetProducer> = {};
   let primaryPackage: TrackingPackage;
   if (trackingPackages.length > 1) {
@@ -160,6 +160,7 @@ export function buildSynthStep(trackingPackages: TrackingPackage[], service: SER
   return new ShellStep('Synth', {
     input: CodePipelineSource.connection(`${ GITHUB_ORGANIZATION_NAME }/${ primaryPackage.package }`, primaryPackage.branch ?? 'main', {
       connectionArn: githubConnectionArn,
+      codeBuildCloneOutput: true,
     }),
     additionalInputs: additionalInputs,
     primaryOutputDirectory: 'cdk/cdk.out',

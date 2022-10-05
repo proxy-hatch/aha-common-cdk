@@ -1,12 +1,12 @@
-import { Construct } from "constructs";
-import { Stack, StackProps, Stage } from "aws-cdk-lib";
-import { CodePipeline, ShellStep, Step } from "aws-cdk-lib/pipelines";
+import { Construct } from 'constructs';
+import { Stack, StackProps, Stage } from 'aws-cdk-lib';
+import { CodePipeline, ShellStep, Step } from 'aws-cdk-lib/pipelines';
 import {
   AHA_DEFAULT_REGION,
   REGION, StackCreationInfo,
   STAGE,
-} from "../../constant";
-import assert from "node:assert";
+} from '../../constant';
+import assert from 'node:assert';
 import {
   BaseAhaPipelineInfo,
   buildSynthStep, createEcrRepository,
@@ -14,7 +14,7 @@ import {
   DeploymentGroupCreationProps,
   getEcrName,
   TrackingPackage,
-} from "./pipeline-common";
+} from './pipeline-common';
 import { createStackCreationInfo } from '../../util';
 import { BuildEnvironmentVariableType, BuildSpec } from 'aws-cdk-lib/aws-codebuild';
 import { PolicyStatement } from 'aws-cdk-lib/aws-iam';
@@ -69,7 +69,7 @@ export class AhaSingleEnvPipelineStack extends Stack {
       synthCodeBuildDefaults: {
         buildEnvironment: {
           environmentVariables: {
-            "DEV_ACCOUNT": {
+            'DEV_ACCOUNT': {
               type: BuildEnvironmentVariableType.PLAINTEXT,
               value: props.pipelineInfo.pipelineAccount,
             },
@@ -83,8 +83,8 @@ export class AhaSingleEnvPipelineStack extends Stack {
             // TODO: directly use nodejs 16 when CodeBuild with CodePipeline has official support
             // https://github.com/aws/aws-codebuild-docker-images/issues/490
             install: {
-              "runtime-versions": {
-                nodejs: "14",
+              'runtime-versions': {
+                nodejs: '14',
               },
               commands: [ 'n 16' ],
             },
@@ -92,7 +92,7 @@ export class AhaSingleEnvPipelineStack extends Stack {
         }),
         buildEnvironment: {
           environmentVariables: {
-            "SSH_PRIVATE_KEY": {
+            'SSH_PRIVATE_KEY': {
               type: BuildEnvironmentVariableType.PLAINTEXT,
               value: githubSshPrivateKey,
             },
@@ -126,19 +126,20 @@ export class AhaSingleEnvPipelineStack extends Stack {
    *
    */
   public addDeploymentStage(stackCreationInfo: StackCreationInfo, deploymentStage: Stage): void {
-    assert.strictEqual(this.isDeploymentStageSet, false, "deployment stage already created! Only 1 deployment stage allowed for single env pipeline");
+    assert.strictEqual(this.isDeploymentStageSet, false, 'deployment stage already created! Only 1 deployment stage allowed for single env pipeline');
 
     this.pipeline.addStage(deploymentStage,
         {
-          pre:
+          post:
               Step.sequence([
                 createServiceImageBuildCodeBuildStep(
                     this.synthStep,
                     stackCreationInfo.account,
                     stackCreationInfo.region,
                     getEcrName(stackCreationInfo.stackPrefix, this.props.pipelineInfo.service),
+                    this.props.pipelineInfo.containerImageBuildCmds,
                 ),
-              ]),// DEBUG
+              ]),
           // post:
           //     Step.sequence([
           //       createServiceImageBuildCodeBuildStep(

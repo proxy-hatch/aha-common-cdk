@@ -133,13 +133,14 @@ export class AhaPipelineStack extends Stack {
 
     this.pipeline.addStage(deploymentStacksStage,
         {
-          pre:
+          post:
               Step.sequence([
                 createServiceImageBuildCodeBuildStep(
                     this.synthStep,
                     this.props.pipelineInfo.pipelineAccount,
                     stackCreationInfo.region,
                     getEcrName(stackCreationInfo.stackPrefix, this.props.pipelineInfo.service),
+                    this.props.pipelineInfo.containerImageBuildCmds,
                 ),
               ]),
           // post:
