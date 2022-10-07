@@ -1,10 +1,10 @@
 # Aha Common CDK library
 
-TODO: add README to describe how to integrate with new infra pkg
-[api-core#1595](https://app.zenhub.com/workspaces/back-edtech-623a878cdf3d780017775a34/issues/earnaha/api-core/1595)
+Collection of constants, helper methods, and CDK constructs to use in CDK infrastructure packages.
 
-See [aha-poc-express-server](https://github.com/EarnAha/aha-poc-express-server/tree/main/cdk/) for example.
+See [api-core](https://github.com/EarnAha/api-core/) for usage examples.
 
+### Adding new dependencies
 Be sure to add both devDependencies and peerDependencies for any cdk library that your package needs to consume to maintain version consistency.
 Reference: [Managing dependencies for construct library](https://tinyurl.com/manage-construct-dependencies)
 
