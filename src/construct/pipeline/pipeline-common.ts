@@ -30,6 +30,7 @@ import { AHA_ORGANIZATION_ACCOUNT } from '../../environment-configuration';
 export type TrackingPackage = {
   readonly package: string;
   readonly branch?: string; // default to main
+  readonly triggerOnPush?: boolean; // default to true
 }
 
 /**
@@ -72,10 +73,10 @@ export function createEcrRepository(scope: Stack, stackCreationPrefix: string, s
   const ecr = new Repository(scope, stageEcrName, {
         repositoryName: stageEcrName,
         removalPolicy: RemovalPolicy.DESTROY,
-        lifecycleRules: [ {
+        lifecycleRules: [{
           description: 'limit max image count',
           maxImageAge: Duration.days(90),
-        } ],
+        }],
       },
   );
 
@@ -94,7 +95,7 @@ function buildCrossAccountEcrResourcePolicy(service: SERVICE) {
 
   return new PolicyStatement({
     effect: Effect.ALLOW,
-    actions: [ 'ecr:*' ],
+    actions: ['ecr:*'],
     principals: accountIdPrincipals,
   });
 }
@@ -143,7 +144,6 @@ export function buildSynthStep(trackingPackages: TrackingPackage[], service: SER
   assert.ok(githubConnectionArn, `Github Connection Arn not found for ${ service }, ${ stage }. Is your pipeline hosted here?`);
 
   // track additional packages
-  // not actually reading these, just tracking changes
   let additionalInputs: Record<string, IFileSetProducer> = {};
   let primaryPackage: TrackingPackage;
   if (trackingPackages.length > 1) {
@@ -151,6 +151,8 @@ export function buildSynthStep(trackingPackages: TrackingPackage[], service: SER
     trackingPackages.forEach(pkg => {
       additionalInputs[pkg.package] = CodePipelineSource.connection(`${ GITHUB_ORGANIZATION_NAME }/${ pkg.package }`, pkg.branch ?? 'main', {
         connectionArn: githubConnectionArn,
+        codeBuildCloneOutput: true,
+        triggerOnPush: pkg.triggerOnPush ?? true,
       });
     });
   } else {
@@ -161,6 +163,7 @@ export function buildSynthStep(trackingPackages: TrackingPackage[], service: SER
     input: CodePipelineSource.connection(`${ GITHUB_ORGANIZATION_NAME }/${ primaryPackage.package }`, primaryPackage.branch ?? 'main', {
       connectionArn: githubConnectionArn,
       codeBuildCloneOutput: true,
+      triggerOnPush: primaryPackage.triggerOnPush ?? true,
     }),
     additionalInputs: additionalInputs,
     primaryOutputDirectory: 'cdk/cdk.out',
