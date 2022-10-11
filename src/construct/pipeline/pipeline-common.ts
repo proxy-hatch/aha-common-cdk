@@ -72,10 +72,10 @@ export function createEcrRepository(scope: Stack, stackCreationPrefix: string, s
   const ecr = new Repository(scope, stageEcrName, {
         repositoryName: stageEcrName,
         removalPolicy: RemovalPolicy.DESTROY,
-        lifecycleRules: [ {
+        lifecycleRules: [{
           description: 'limit max image count',
           maxImageAge: Duration.days(90),
-        } ],
+        }],
       },
   );
 
@@ -94,7 +94,7 @@ function buildCrossAccountEcrResourcePolicy(service: SERVICE) {
 
   return new PolicyStatement({
     effect: Effect.ALLOW,
-    actions: [ 'ecr:*' ],
+    actions: ['ecr:*'],
     principals: accountIdPrincipals,
   });
 }
@@ -130,6 +130,10 @@ export function createServiceImageBuildCodeBuildStep(synth: ShellStep, ecrAccoun
         },
         post_build: {
           commands: 'docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${IMAGE_REPO_NAME}:${IMAGE_TAG}',
+        },
+        artifacts: {
+          files: ['/root/.npm/_logs/*'],
+          name: 'npm-logs',
         },
       },
     }),
@@ -173,7 +177,7 @@ export function buildSynthStep(trackingPackages: TrackingPackage[], service: SER
       'git config --global url."git@github.com:".insteadOf "https://github.com/"',
       'npm install',
       'echo "detecting pipeline account ${DEV_ACCOUNT}"',
-      'npm run build -- -v',
+      'npm run build',
     ],
   });
 }
