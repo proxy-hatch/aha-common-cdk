@@ -65,7 +65,7 @@ export class AhaPipelineStack extends Stack {
     
     this.buildDeploymentGroupCreationProps(props);
     
-    this.createEcrRepositories();
+    // this.createEcrRepositories();
     
     // githubSshPrivateKey is retrieved from pipeline account parameter store.
     // new pipeline account must create this manually at https://ap-northeast-1.console.aws.amazon.com/systems-manager/parameters/?region=ap-northeast-1
@@ -185,10 +185,10 @@ export class AhaPipelineStack extends Stack {
     });
   }
   
-  private createEcrRepositories(): void {
-    this.deploymentGroupCreationProps.forEach(props => {
-      createEcrRepository(this, props.stackCreationInfo.stackPrefix, this.props.pipelineInfo.service);
-    });
-  }
+  // private createEcrRepositories(): void {
+  //   this.deploymentGroupCreationProps.forEach(props => {
+  //     createEcrRepository(this, props.stackCreationInfo.stackPrefix, this.props.pipelineInfo.service);
+  //   });
+  // }
   
 }
