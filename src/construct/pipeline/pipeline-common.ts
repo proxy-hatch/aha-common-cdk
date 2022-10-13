@@ -142,8 +142,9 @@ export function createServiceImageBuildCodeBuildStep(synth: ShellStep, stackCrea
         },
       },
     }),
+    // TODO: restrict to only necessary permissions in service stage account
     rolePolicyStatements: [new PolicyStatement({
-      principals: [new AccountPrincipal(account)],
+      sid: 'ECRPush',
       actions: ['ecr:*'],
       resources: ['*'],
     })],
