@@ -2,7 +2,7 @@ import { Stack, StackProps, Stage } from 'aws-cdk-lib';
 import { BuildEnvironmentVariableType, BuildSpec } from 'aws-cdk-lib/aws-codebuild';
 import { PolicyStatement } from 'aws-cdk-lib/aws-iam';
 import { StringParameter } from 'aws-cdk-lib/aws-ssm';
-import { StateMachine } from 'aws-cdk-lib/aws-stepfunctions';
+// import { StateMachine } from 'aws-cdk-lib/aws-stepfunctions';
 import { CodePipeline, ManualApprovalStep, ShellStep, Step } from 'aws-cdk-lib/pipelines';
 import { Construct } from 'constructs';
 import { AHA_DEFAULT_REGION, REGION, StackCreationInfo, STAGE } from '../../constant';
@@ -10,10 +10,10 @@ import { createStackCreationInfo, getAccountInfo, getStagesForService } from '..
 import {
   BaseAhaPipelineInfo,
   buildSynthStep,
-  createDeploymentWaitStateMachine,
+  // createDeploymentWaitStateMachine,
   createServiceImageBuildCodeBuildStep,
   DeploymentGroupCreationProps,
-  DeploymentSfnStep,
+  // DeploymentSfnStep,
   TrackingPackage,
 } from './pipeline-common';
 
@@ -50,7 +50,7 @@ export class AhaPipelineStack extends Stack {
   private readonly props: AhaPipelineProps;
   private readonly synthStep: ShellStep;
   
-  private readonly deploymentWaitStateMachine: StateMachine;
+  // private readonly deploymentWaitStateMachine: StateMachine;
   
   constructor(scope: Construct, id: string, props: AhaPipelineProps) {
     super(scope, id, {
@@ -117,7 +117,7 @@ export class AhaPipelineStack extends Stack {
       },
     });
     
-    this.deploymentWaitStateMachine = createDeploymentWaitStateMachine(this, props.pipelineInfo.service, props.pipelineInfo.deploymentWaitTimeMins);
+    // this.deploymentWaitStateMachine = createDeploymentWaitStateMachine(this, props.pipelineInfo.service, props.pipelineInfo.deploymentWaitTimeMins);
   }
   
   /**
@@ -150,9 +150,9 @@ export class AhaPipelineStack extends Stack {
         }],
         post:
           Step.sequence([
-            // used to wait for deployment completion
-            // TODO: use deployment health check instead https://app.zenhub.com/workspaces/back-edtech-623a878cdf3d780017775a34/issues/earnaha/api-core/1709
-            new DeploymentSfnStep(this.deploymentWaitStateMachine),
+            // // used to wait for deployment completion
+            // // TODO: use deployment health check instead https://app.zenhub.com/workspaces/back-edtech-623a878cdf3d780017775a34/issues/earnaha/api-core/1709
+            // new DeploymentSfnStep(this.deploymentWaitStateMachine),
             // TODO: Timmy - test Jenkins integration
             // new AhaJenkinsIntegrationTestStep(this.props.pipelineInfo.service, this.props.pipelineInfo.stage),
           ]),
