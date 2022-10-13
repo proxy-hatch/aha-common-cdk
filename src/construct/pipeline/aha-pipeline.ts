@@ -129,23 +129,25 @@ export class AhaPipelineStack extends Stack {
    *
    * @param deploymentStacksStage - The collection of infrastructure stacks for this env
    * @param stackCreationInfo - the env that infrastructure stacks is being deployed to
+   * @param ecrStack
    */
-  public addDeploymentStage(stackCreationInfo: StackCreationInfo, deploymentStacksStage: Stage): void {
+  public addDeploymentStage(stackCreationInfo: StackCreationInfo, deploymentStacksStage: Stage, ecrStack: Stack): void {
     let preSteps: Step[] = [];
-    
     if (stackCreationInfo.stage == STAGE.PROD && this.props.pipelineInfo.prodManualApproval) {
       preSteps.push(new ManualApprovalStep('PromoteToProd'));
     }
     
-    preSteps.push(createServiceImageBuildCodeBuildStep(
-      this.synthStep,
-      stackCreationInfo,
-      this.props.pipelineInfo.service,
-      this.props.pipelineInfo.containerImageBuildCmds));
-    
     this.pipeline.addStage(deploymentStacksStage,
       {
         pre: Step.sequence(preSteps),
+        stackSteps: [{
+          stack: ecrStack,
+          post: [createServiceImageBuildCodeBuildStep(
+            this.synthStep,
+            stackCreationInfo,
+            this.props.pipelineInfo.service,
+            this.props.pipelineInfo.containerImageBuildCmds)],
+        }],
         post:
           Step.sequence([
             // used to wait for deployment completion
