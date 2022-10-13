@@ -45,7 +45,12 @@
     ],
     "@typescript-eslint/indent": [
       "error",
-      2
+      2,
+      {
+        "FunctionExpression": {
+          "parameters": "first"
+        }
+      }
     ],
     "quotes": [
       "error",
@@ -191,7 +196,10 @@
       "warn"
     ],
     "no-trailing-spaces": [
-      "error",{ "skipBlankLines": true }
+      "error",
+      {
+        "skipBlankLines": true
+      }
     ],
     "dot-notation": [
       "error"

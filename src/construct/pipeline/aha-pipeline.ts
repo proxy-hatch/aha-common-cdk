@@ -11,11 +11,9 @@ import {
   BaseAhaPipelineInfo,
   buildSynthStep,
   createDeploymentWaitStateMachine,
-  createEcrRepository,
   createServiceImageBuildCodeBuildStep,
   DeploymentGroupCreationProps,
   DeploymentSfnStep,
-  getEcrName,
   TrackingPackage,
 } from './pipeline-common';
 
@@ -64,8 +62,6 @@ export class AhaPipelineStack extends Stack {
     this.props = props;
     
     this.buildDeploymentGroupCreationProps(props);
-    
-    // this.createEcrRepositories();
     
     // githubSshPrivateKey is retrieved from pipeline account parameter store.
     // new pipeline account must create this manually at https://ap-northeast-1.console.aws.amazon.com/systems-manager/parameters/?region=ap-northeast-1
@@ -136,16 +132,15 @@ export class AhaPipelineStack extends Stack {
    */
   public addDeploymentStage(stackCreationInfo: StackCreationInfo, deploymentStacksStage: Stage): void {
     let preSteps: Step[] = [];
-  
+    
     if (stackCreationInfo.stage == STAGE.PROD && this.props.pipelineInfo.prodManualApproval) {
       preSteps.push(new ManualApprovalStep('PromoteToProd'));
     }
     
     preSteps.push(createServiceImageBuildCodeBuildStep(
       this.synthStep,
-      this.props.pipelineInfo.pipelineAccount,
-      stackCreationInfo.region,
-      getEcrName(stackCreationInfo.stackPrefix, this.props.pipelineInfo.service),
+      stackCreationInfo,
+      this.props.pipelineInfo.service,
       this.props.pipelineInfo.containerImageBuildCmds));
     
     this.pipeline.addStage(deploymentStacksStage,
@@ -184,11 +179,5 @@ export class AhaPipelineStack extends Stack {
       });
     });
   }
-  
-  // private createEcrRepositories(): void {
-  //   this.deploymentGroupCreationProps.forEach(props => {
-  //     createEcrRepository(this, props.stackCreationInfo.stackPrefix, this.props.pipelineInfo.service);
-  //   });
-  // }
   
 }

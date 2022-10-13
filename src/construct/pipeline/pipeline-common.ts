@@ -102,8 +102,14 @@ function buildCrossAccountEcrResourcePolicy(service: SERVICE) {
   });
 }
 
-
-export function createServiceImageBuildCodeBuildStep(synth: ShellStep, ecrAccountId: string, region: string, ecrName: string, containerImageBuildCmds: string[]) {
+export function createServiceImageBuildCodeBuildStep(synth: ShellStep, stackCreationInfo: StackCreationInfo, service: SERVICE,
+                                                     containerImageBuildCmds: string[]) {
+  const {
+    region,
+    account,
+    stackPrefix,
+  } = stackCreationInfo;
+  
   return new CodeBuildStep('Build and publish service image', {
     input: synth.addOutputDirectory('./'),
     commands: [],
@@ -114,8 +120,8 @@ export function createServiceImageBuildCodeBuildStep(synth: ShellStep, ecrAccoun
       version: '0.2',
       env: {
         variables: {
-          AWS_ACCOUNT_ID: ecrAccountId,
-          IMAGE_REPO_NAME: ecrName,
+          AWS_ACCOUNT_ID: account,
+          IMAGE_REPO_NAME: getEcrName(stackPrefix, service),
           AWS_REGION: region,
           IMAGE_TAG: 'latest',
         },
@@ -136,6 +142,11 @@ export function createServiceImageBuildCodeBuildStep(synth: ShellStep, ecrAccoun
         },
       },
     }),
+    rolePolicyStatements: [new PolicyStatement({
+      principals: [new AccountPrincipal(account)],
+      actions: ['ecr:*'],
+      resources: ['*'],
+    })],
   });
 }
 

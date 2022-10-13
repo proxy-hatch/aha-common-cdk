@@ -9,10 +9,9 @@ import {
 import assert from 'node:assert';
 import {
   BaseAhaPipelineInfo,
-  buildSynthStep, createDeploymentWaitStateMachine, createEcrRepository,
+  buildSynthStep, createDeploymentWaitStateMachine,
   createServiceImageBuildCodeBuildStep,
   DeploymentGroupCreationProps, DeploymentSfnStep,
-  getEcrName,
   TrackingPackage,
 } from './pipeline-common';
 import { createStackCreationInfo } from '../../util';
@@ -59,9 +58,8 @@ export class AhaSingleEnvPipelineStack extends Stack {
       },
     });
     
-    this.deploymentGroupCreationProps = this.buildSingleStageDeploymentGroupCreationProps(this.props.pipelineInfo.pipelineAccount, props.pipelineInfo.stage);
-    
-    // createEcrRepository(this, this.deploymentGroupCreationProps.stackCreationInfo.stackPrefix, props.pipelineInfo.service);
+    this.deploymentGroupCreationProps = this.buildSingleStageDeploymentGroupCreationProps(
+      this.props.pipelineInfo.pipelineAccount, props.pipelineInfo.stage);
     
     // githubSshPrivateKey is retrieved from pipeline account parameter store.
     // new pipeline account must create this manually at https://ap-northeast-1.console.aws.amazon.com/systems-manager/parameters/?region=ap-northeast-1
@@ -75,7 +73,7 @@ export class AhaSingleEnvPipelineStack extends Stack {
       synthCodeBuildDefaults: {
         buildEnvironment: {
           environmentVariables: {
-            'DEV_ACCOUNT': {
+            DEV_ACCOUNT: {
               type: BuildEnvironmentVariableType.PLAINTEXT,
               value: props.pipelineInfo.pipelineAccount,
             },
@@ -92,13 +90,13 @@ export class AhaSingleEnvPipelineStack extends Stack {
               'runtime-versions': {
                 nodejs: '14',
               },
-              commands: ['n 16'],
+              'commands': ['n 16'],
             },
           },
         }),
         buildEnvironment: {
           environmentVariables: {
-            'SSH_PRIVATE_KEY': {
+            SSH_PRIVATE_KEY: {
               type: BuildEnvironmentVariableType.PLAINTEXT,
               value: githubSshPrivateKey,
             },
@@ -138,9 +136,8 @@ export class AhaSingleEnvPipelineStack extends Stack {
       {
         pre: [createServiceImageBuildCodeBuildStep(
           this.synthStep,
-          this.props.pipelineInfo.pipelineAccount,
-          stackCreationInfo.region,
-          getEcrName(stackCreationInfo.stackPrefix, this.props.pipelineInfo.service),
+          stackCreationInfo,
+          this.props.pipelineInfo.service,
           this.props.pipelineInfo.containerImageBuildCmds)],
         post:
           Step.sequence([
