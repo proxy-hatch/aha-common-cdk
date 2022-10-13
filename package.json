@@ -44,5 +44,8 @@
   "bugs": {
     "url": "https://github.com/EarnAha/common-cdk/issues"
   },
-  "homepage": "https://github.com/EarnAha/common-cdk#readme"
+  "homepage": "https://github.com/EarnAha/common-cdk#readme",
+  "dependencies": {
+    "constructs": "^10.1.129"
+  }
 }

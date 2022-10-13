@@ -1,9 +1,11 @@
-import {
-  GITHUB_ORGANIZATION_NAME,
-  SERVICE,
-  StackCreationInfo,
-  STAGE,
-} from '../../constant';
+import assert from 'node:assert';
+import { Duration, RemovalPolicy, Stack } from 'aws-cdk-lib';
+import { BuildSpec } from 'aws-cdk-lib/aws-codebuild';
+import { IStage } from 'aws-cdk-lib/aws-codepipeline';
+import * as cpactions from 'aws-cdk-lib/aws-codepipeline-actions';
+import { Repository } from 'aws-cdk-lib/aws-ecr';
+import { AccountPrincipal, Effect, PolicyStatement } from 'aws-cdk-lib/aws-iam';
+import { StateMachine, Succeed, Wait, WaitTime } from 'aws-cdk-lib/aws-stepfunctions';
 import {
   CodeBuildStep, CodePipelineActionFactoryResult,
   CodePipelineSource,
@@ -12,17 +14,15 @@ import {
   ShellStep,
   Step,
 } from 'aws-cdk-lib/pipelines';
-import assert from 'node:assert';
 import { IFileSetProducer } from 'aws-cdk-lib/pipelines/lib/blueprint/file-set';
-import { BuildSpec } from 'aws-cdk-lib/aws-codebuild';
-import { getAccountIdsForService, getAccountInfo } from '../../util';
-import * as cpactions from 'aws-cdk-lib/aws-codepipeline-actions';
-import { IStage } from 'aws-cdk-lib/aws-codepipeline';
-import { StateMachine, Succeed, Wait, WaitTime } from 'aws-cdk-lib/aws-stepfunctions';
-import { Duration, RemovalPolicy, Stack } from 'aws-cdk-lib';
-import { Repository } from 'aws-cdk-lib/aws-ecr';
-import { AccountPrincipal, Effect, PolicyStatement } from 'aws-cdk-lib/aws-iam';
+import {
+  GITHUB_ORGANIZATION_NAME,
+  SERVICE,
+  StackCreationInfo,
+  STAGE,
+} from '../../constant';
 import { AHA_ORGANIZATION_ACCOUNT } from '../../environment-configuration';
+import { getAccountIdsForService, getAccountInfo } from '../../util';
 
 /**
  * When branch is not provided, defaults to track main branch
@@ -69,15 +69,15 @@ export function getEcrName(stackPrefix: string, service: SERVICE) {
 
 export function createEcrRepository(scope: Stack, stackCreationPrefix: string, service: SERVICE): void {
   const stageEcrName = getEcrName(
-      stackCreationPrefix, service);
+    stackCreationPrefix, service);
   const ecr = new Repository(scope, stageEcrName, {
-        repositoryName: stageEcrName,
-        removalPolicy: RemovalPolicy.DESTROY,
-        lifecycleRules: [{
-          description: 'limit max image count',
-          maxImageAge: Duration.days(90),
-        }],
-      },
+    repositoryName: stageEcrName,
+    removalPolicy: RemovalPolicy.DESTROY,
+    lifecycleRules: [{
+      description: 'limit max image count',
+      maxImageAge: Duration.days(90),
+    }],
+  },
   );
 
   ecr.addToResourcePolicy(buildCrossAccountEcrResourcePolicy(service));
@@ -102,7 +102,7 @@ function buildCrossAccountEcrResourcePolicy(service: SERVICE) {
 
 
 export function createServiceImageBuildCodeBuildStep(synth: ShellStep, ecrAccountId: string, region: string, ecrName: string, containerImageBuildCmds: string[]) {
-  return new CodeBuildStep(`Build and publish service image`, {
+  return new CodeBuildStep('Build and publish service image', {
     input: synth.addOutputDirectory('./'),
     commands: [],
     buildEnvironment: {
@@ -112,10 +112,10 @@ export function createServiceImageBuildCodeBuildStep(synth: ShellStep, ecrAccoun
       version: '0.2',
       env: {
         variables: {
-          'AWS_ACCOUNT_ID': ecrAccountId,
-          'IMAGE_REPO_NAME': ecrName,
-          'AWS_REGION': region,
-          'IMAGE_TAG': 'latest',
+          AWS_ACCOUNT_ID: ecrAccountId,
+          IMAGE_REPO_NAME: ecrName,
+          AWS_REGION: region,
+          IMAGE_TAG: 'latest',
         },
       },
       phases: {
@@ -176,7 +176,7 @@ export function buildSynthStep(trackingPackages: TrackingPackage[], service: SER
       'git config --global url."git@github.com:".insteadOf "https://github.com/"',
       'npm install',
       'echo "detecting pipeline account ${DEV_ACCOUNT}"',
-      'npm run build -- -v',
+      'npm run build',
     ],
   });
 }
@@ -194,7 +194,7 @@ export function createDeploymentWaitStateMachine(scope: Stack, service: SERVICE,
 // ref: https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.pipelines-readme.html#arbitrary-codepipeline-actions
 export class DeploymentSfnStep extends Step implements ICodePipelineActionFactory {
   constructor(
-      private readonly stateMachine: StateMachine,
+    private readonly stateMachine: StateMachine,
   ) {
     super('DeploymentSfnStep');
   }

@@ -1,30 +1,30 @@
-import { Construct } from 'constructs';
 import { Stack, StackProps, Stage } from 'aws-cdk-lib';
-import { CodePipeline, ShellStep, Step } from 'aws-cdk-lib/pipelines';
-import {
-  AHA_DEFAULT_REGION,
-  REGION, StackCreationInfo,
-  STAGE,
-} from '../../constant';
+import { BuildEnvironmentVariableType, BuildSpec } from 'aws-cdk-lib/aws-codebuild';
+import { PolicyStatement } from 'aws-cdk-lib/aws-iam';
+import { StringParameter } from 'aws-cdk-lib/aws-ssm';
+import { StateMachine } from 'aws-cdk-lib/aws-stepfunctions';
+import { CodePipeline, ManualApprovalStep, ShellStep, Step } from 'aws-cdk-lib/pipelines';
+import { Construct } from 'constructs';
+import { AHA_DEFAULT_REGION, REGION, StackCreationInfo, STAGE } from '../../constant';
 import { createStackCreationInfo, getAccountInfo, getStagesForService } from '../../util';
 import {
   BaseAhaPipelineInfo,
   buildSynthStep,
+  createDeploymentWaitStateMachine,
   createEcrRepository,
   createServiceImageBuildCodeBuildStep,
   DeploymentGroupCreationProps,
+  DeploymentSfnStep,
   getEcrName,
   TrackingPackage,
 } from './pipeline-common';
-import { StringParameter } from 'aws-cdk-lib/aws-ssm';
-import { BuildEnvironmentVariableType, BuildSpec } from 'aws-cdk-lib/aws-codebuild';
-import { PolicyStatement } from 'aws-cdk-lib/aws-iam';
 
 /**
  * skipProdStages defaults to false.
  */
 export interface AhaPipelineInfo extends BaseAhaPipelineInfo {
-  readonly skipProdStages?: boolean;
+  readonly skipProdStages?: boolean; // false by default
+  readonly prodManualApproval?: boolean; // false by default
 }
 
 /**
@@ -32,7 +32,7 @@ export interface AhaPipelineInfo extends BaseAhaPipelineInfo {
  */
 export interface AhaPipelineProps extends StackProps {
   readonly pipelineInfo: AhaPipelineInfo;
-  readonly trackingPackages: TrackingPackage[];  // the 1st must be service package
+  readonly trackingPackages: TrackingPackage[]; // the 1st must be service package
 }
 
 
@@ -51,22 +51,27 @@ export class AhaPipelineStack extends Stack {
   public readonly pipeline: CodePipeline;
   private readonly props: AhaPipelineProps;
   private readonly synthStep: ShellStep;
-
-  // private readonly deploymentWaitStateMachine: StateMachine;
-
+  
+  private readonly deploymentWaitStateMachine: StateMachine;
+  
   constructor(scope: Construct, id: string, props: AhaPipelineProps) {
-    super(scope, id, { env: { region: REGION.APN1, account: props.pipelineInfo.pipelineAccount } });
+    super(scope, id, {
+      env: {
+        region: REGION.APN1,
+        account: props.pipelineInfo.pipelineAccount,
+      },
+    });
     this.props = props;
-
+    
     this.buildDeploymentGroupCreationProps(props);
-
+    
     this.createEcrRepositories();
-
+    
     // githubSshPrivateKey is retrieved from pipeline account parameter store.
     // new pipeline account must create this manually at https://ap-northeast-1.console.aws.amazon.com/systems-manager/parameters/?region=ap-northeast-1
     // TODO: should be retrieved from central account secrets manager https://app.zenhub.com/workspace/o/earnaha/api-core/issues/1763
     const githubSshPrivateKey = StringParameter.valueForStringParameter(this, 'github-ssh-private-key');
-
+    
     this.synthStep = buildSynthStep(props.trackingPackages, props.pipelineInfo.service, STAGE.BETA);
     this.pipeline = new CodePipeline(this, 'Pipeline', {
       crossAccountKeys: true, // allow multi-account envs by KMS encrypting artifact bucket
@@ -74,7 +79,7 @@ export class AhaPipelineStack extends Stack {
       synthCodeBuildDefaults: {
         buildEnvironment: {
           environmentVariables: {
-            'DEV_ACCOUNT': {
+            DEV_ACCOUNT: {
               type: BuildEnvironmentVariableType.PLAINTEXT,
               value: props.pipelineInfo.pipelineAccount,
             },
@@ -91,13 +96,13 @@ export class AhaPipelineStack extends Stack {
               'runtime-versions': {
                 nodejs: '14',
               },
-              commands: [ 'n 16' ],
+              'commands': ['n 16'],
             },
           },
         }),
         buildEnvironment: {
           environmentVariables: {
-            'SSH_PRIVATE_KEY': {
+            SSH_PRIVATE_KEY: {
               type: BuildEnvironmentVariableType.PLAINTEXT,
               value: githubSshPrivateKey,
             },
@@ -105,20 +110,20 @@ export class AhaPipelineStack extends Stack {
         },
         rolePolicy: [
           new PolicyStatement({
-            actions: [ 'ssm:GetParameters' ],
-            resources: [ '*' ],
+            actions: ['ssm:GetParameters'],
+            resources: ['*'],
           }),
           new PolicyStatement({
-            actions: [ 'ecr:*' ],
-            resources: [ '*' ],
+            actions: ['ecr:*'],
+            resources: ['*'],
           }),
         ],
       },
     });
-
-    // this.deploymentWaitStateMachine = createDeploymentWaitStateMachine(this, props.pipelineInfo.service, props.pipelineInfo.deploymentWaitTimeMins);
+    
+    this.deploymentWaitStateMachine = createDeploymentWaitStateMachine(this, props.pipelineInfo.service, props.pipelineInfo.deploymentWaitTimeMins);
   }
-
+  
   /**
    * Adds the deployment stacks in a single stage to the pipeline env. User of this construct is expected to call this method for all stages.
    *
@@ -130,39 +135,39 @@ export class AhaPipelineStack extends Stack {
    * @param stackCreationInfo - the env that infrastructure stacks is being deployed to
    */
   public addDeploymentStage(stackCreationInfo: StackCreationInfo, deploymentStacksStage: Stage): void {
-
+    let preSteps: Step[] = [];
+  
+    if (stackCreationInfo.stage == STAGE.PROD && this.props.pipelineInfo.prodManualApproval) {
+      preSteps.push(new ManualApprovalStep('PromoteToProd'));
+    }
+    
+    preSteps.push(createServiceImageBuildCodeBuildStep(
+      this.synthStep,
+      this.props.pipelineInfo.pipelineAccount,
+      stackCreationInfo.region,
+      getEcrName(stackCreationInfo.stackPrefix, this.props.pipelineInfo.service),
+      this.props.pipelineInfo.containerImageBuildCmds));
+    
     this.pipeline.addStage(deploymentStacksStage,
-        {
-          post:
-              Step.sequence([
-                createServiceImageBuildCodeBuildStep(
-                    this.synthStep,
-                    this.props.pipelineInfo.pipelineAccount,
-                    stackCreationInfo.region,
-                    getEcrName(stackCreationInfo.stackPrefix, this.props.pipelineInfo.service),
-                    this.props.pipelineInfo.containerImageBuildCmds,
-                ),
-              ]),
-          // post:
-          //     Step.sequence([
-          //       createServiceImageBuildCodeBuildStep(
-          //           this.synthStep,
-          //           stackCreationInfo.account,
-          //           stackCreationInfo.region,
-          //           getEcrName(stackCreationInfo.stackPrefix, this.props.pipelineInfo.service),
-          //       ),
-          //       // used to wait for deployment completion
-          //       // TODO: use deployment health check instead https://app.zenhub.com/workspaces/back-edtech-623a878cdf3d780017775a34/issues/earnaha/api-core/1709
-          //       new DeploymentSfnStep(this.deploymentWaitStateMachine),
-          //       // TODO: Timmy - test Jenkins integration
-          //       // new AhaJenkinsIntegrationTestStep(this.props.pipelineInfo.service, this.props.pipelineInfo.stage),
-          //     ]),
-        });
+      {
+        pre: Step.sequence(preSteps),
+        post:
+          Step.sequence([
+            // used to wait for deployment completion
+            // TODO: use deployment health check instead https://app.zenhub.com/workspaces/back-edtech-623a878cdf3d780017775a34/issues/earnaha/api-core/1709
+            new DeploymentSfnStep(this.deploymentWaitStateMachine),
+            // TODO: Timmy - test Jenkins integration
+            // new AhaJenkinsIntegrationTestStep(this.props.pipelineInfo.service, this.props.pipelineInfo.stage),
+          ]),
+      });
   }
-
+  
   private buildDeploymentGroupCreationProps(props: AhaPipelineProps): void {
-    const { service, skipProdStages } = props.pipelineInfo;
-
+    const {
+      service,
+      skipProdStages,
+    } = props.pipelineInfo;
+    
     getStagesForService(service).forEach(stage => {
       if (stage == STAGE.ALPHA) {
         return;
@@ -170,20 +175,20 @@ export class AhaPipelineStack extends Stack {
       if (skipProdStages && stage == STAGE.PROD) {
         return;
       }
-
+      
       this.deploymentGroupCreationProps.push({
         stackCreationInfo: createStackCreationInfo(
-            getAccountInfo(service, stage).accountId,
-            AHA_DEFAULT_REGION,
-            stage),
+          getAccountInfo(service, stage).accountId,
+          AHA_DEFAULT_REGION,
+          stage),
       });
     });
   }
-
+  
   private createEcrRepositories(): void {
     this.deploymentGroupCreationProps.forEach(props => {
       createEcrRepository(this, props.stackCreationInfo.stackPrefix, this.props.pipelineInfo.service);
     });
   }
-
+  
 }

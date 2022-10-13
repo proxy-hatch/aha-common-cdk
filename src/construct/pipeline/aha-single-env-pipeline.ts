@@ -47,22 +47,27 @@ export class AhaSingleEnvPipelineStack extends Stack {
   public readonly pipeline: CodePipeline;
   private isDeploymentStageSet: boolean = false;
   private readonly synthStep: ShellStep;
-
+  
   private readonly deploymentWaitStateMachine: StateMachine;
-
+  
   constructor(scope: Construct, id: string,
               private readonly props: AhaSingleEnvPipelineProps) {
-    super(scope, id, { env: { region: REGION.APN1, account: props.pipelineInfo.pipelineAccount } });
-
+    super(scope, id, {
+      env: {
+        region: REGION.APN1,
+        account: props.pipelineInfo.pipelineAccount,
+      },
+    });
+    
     this.deploymentGroupCreationProps = this.buildSingleStageDeploymentGroupCreationProps(this.props.pipelineInfo.pipelineAccount, props.pipelineInfo.stage);
-
+    
     createEcrRepository(this, this.deploymentGroupCreationProps.stackCreationInfo.stackPrefix, props.pipelineInfo.service);
-
+    
     // githubSshPrivateKey is retrieved from pipeline account parameter store.
     // new pipeline account must create this manually at https://ap-northeast-1.console.aws.amazon.com/systems-manager/parameters/?region=ap-northeast-1
     // TODO: should be retrieved from central account secrets manager https://app.zenhub.com/workspace/o/earnaha/api-core/issues/1763
     const githubSshPrivateKey = StringParameter.valueForStringParameter(this, 'github-ssh-private-key');
-
+    
     this.synthStep = buildSynthStep(props.trackingPackages, props.pipelineInfo.service, props.pipelineInfo.stage);
     this.pipeline = new CodePipeline(this, 'Pipeline', {
       crossAccountKeys: false, // allow multi-account envs by KMS encrypting artifact bucket
@@ -87,7 +92,7 @@ export class AhaSingleEnvPipelineStack extends Stack {
               'runtime-versions': {
                 nodejs: '14',
               },
-              commands: [ 'n 16' ],
+              commands: ['n 16'],
             },
           },
         }),
@@ -101,20 +106,20 @@ export class AhaSingleEnvPipelineStack extends Stack {
         },
         rolePolicy: [
           new PolicyStatement({
-            actions: [ 'ssm:GetParameters' ],
-            resources: [ '*' ],
+            actions: ['ssm:GetParameters'],
+            resources: ['*'],
           }),
           new PolicyStatement({
-            actions: [ 'ecr:*' ],
-            resources: [ '*' ],
+            actions: ['ecr:*'],
+            resources: ['*'],
           }),
         ],
       },
     });
-
+    
     this.deploymentWaitStateMachine = createDeploymentWaitStateMachine(this, props.pipelineInfo.service, props.pipelineInfo.deploymentWaitTimeMins);
   }
-
+  
   /**
    * Adds the deployment stacks in a single stage to the pipeline env.
    *
@@ -128,36 +133,35 @@ export class AhaSingleEnvPipelineStack extends Stack {
    */
   public addDeploymentStage(stackCreationInfo: StackCreationInfo, deploymentStage: Stage): void {
     assert.strictEqual(this.isDeploymentStageSet, false, 'deployment stage already created! Only 1 deployment stage allowed for single env pipeline');
-
+    
     this.pipeline.addStage(deploymentStage,
-        {
-          post:
-              Step.sequence([
-                createServiceImageBuildCodeBuildStep(
-                    this.synthStep,
-                    stackCreationInfo.account,
-                    stackCreationInfo.region,
-                    getEcrName(stackCreationInfo.stackPrefix, this.props.pipelineInfo.service),
-                    this.props.pipelineInfo.containerImageBuildCmds,
-                ),
-                // wait for deployment completion
-                // TODO: use deployment health check instead https://app.zenhub.com/workspaces/back-edtech-623a878cdf3d780017775a34/issues/earnaha/api-core/1709
-                new DeploymentSfnStep(this.deploymentWaitStateMachine),
-                // TODO: Timmy - test Jenkins integration
-                // new AhaJenkinsIntegrationTestStep(this.props.pipelineInfo.service, this.props.pipelineInfo.stage),
-              ]),
-        });
-
+      {
+        pre: [createServiceImageBuildCodeBuildStep(
+          this.synthStep,
+          this.props.pipelineInfo.pipelineAccount,
+          stackCreationInfo.region,
+          getEcrName(stackCreationInfo.stackPrefix, this.props.pipelineInfo.service),
+          this.props.pipelineInfo.containerImageBuildCmds)],
+        post:
+          Step.sequence([
+            // used to wait for deployment completion
+            // TODO: use deployment health check instead https://app.zenhub.com/workspaces/back-edtech-623a878cdf3d780017775a34/issues/earnaha/api-core/1709
+            new DeploymentSfnStep(this.deploymentWaitStateMachine),
+            // TODO: Timmy - test Jenkins integration
+            // new AhaJenkinsIntegrationTestStep(this.props.pipelineInfo.service, this.props.pipelineInfo.stage),
+          ]),
+      });
+    
     this.isDeploymentStageSet = true;
   }
-
+  
   private buildSingleStageDeploymentGroupCreationProps(accountId: string, stage: STAGE): DeploymentGroupCreationProps {
     return {
       stackCreationInfo: createStackCreationInfo(
-          accountId,
-          AHA_DEFAULT_REGION,
-          stage),
+        accountId,
+        AHA_DEFAULT_REGION,
+        stage),
     };
   }
-
+  
 }
