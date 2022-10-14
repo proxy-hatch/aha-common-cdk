@@ -189,6 +189,7 @@ export function buildSynthStep(trackingPackages: TrackingPackage[], service: SER
       'ssh-keygen -F github.com || ssh-keyscan github.com >>~/.ssh/known_hosts',
       'git config --global url."git@github.com:".insteadOf "https://github.com/"',
       'npm install',
+      'npm install aha-common-cdk', // github dependency seems to effectively do npm ci upon npm install, installing it explicitly refreshes it to latest
       'echo "detecting pipeline account ${DEV_ACCOUNT}"',
       'npm run build',
     ],
