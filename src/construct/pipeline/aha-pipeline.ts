@@ -116,7 +116,6 @@ export class AhaPipelineStack extends Stack {
         ],
       },
     });
-    
     // this.deploymentWaitStateMachine = createDeploymentWaitStateMachine(this, props.pipelineInfo.service, props.pipelineInfo.deploymentWaitTimeMins);
   }
   
