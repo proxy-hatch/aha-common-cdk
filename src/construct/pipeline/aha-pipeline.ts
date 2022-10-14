@@ -129,7 +129,8 @@ export class AhaPipelineStack extends Stack {
    *
    * @param deploymentStacksStage - The collection of infrastructure stacks for this env
    * @param stackCreationInfo - the env that infrastructure stacks is being deployed to
-   * @param ecrStack
+   * @param ecrStack - "Bring your own batteries" - ECR is expected in service account following naming convention provided by @link{getEcrName()}
+   *                   ECR cannot be centralized in pipeline account because App Runner does not allow x-account auto-deployment
    */
   public addDeploymentStage(stackCreationInfo: StackCreationInfo, deploymentStacksStage: Stage, ecrStack: Stack): void {
     let preSteps: Step[] = [];
