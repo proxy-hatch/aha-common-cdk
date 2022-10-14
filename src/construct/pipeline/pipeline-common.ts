@@ -64,23 +64,25 @@ export interface DeploymentGroupCreationProps {
  * @param service {@link SERVICE}
  */
 export function getEcrName(stackPrefix: string, service: SERVICE) {
-  return `${ stackPrefix }-${ service }-ecr`.toLowerCase();
+  return `${stackPrefix}-${service}-ecr`.toLowerCase();
 }
 
-export function createEcrRepository(scope: Stack, stackCreationPrefix: string, service: SERVICE): void {
+export function createEcrRepository(scope: Stack, stackCreationPrefix: string, service: SERVICE): Repository {
   const stageEcrName = getEcrName(
     stackCreationPrefix, service);
   const ecr = new Repository(scope, stageEcrName, {
-    repositoryName: stageEcrName,
-    removalPolicy: RemovalPolicy.DESTROY,
-    lifecycleRules: [{
-      description: 'limit max image count',
-      maxImageAge: Duration.days(90),
-    }],
-  },
+      repositoryName: stageEcrName,
+      removalPolicy: RemovalPolicy.DESTROY,
+      lifecycleRules: [{
+        description: 'limit max image count',
+        maxImageAge: Duration.days(90),
+      }],
+    },
   );
-
+  
   ecr.addToResourcePolicy(buildCrossAccountEcrResourcePolicy(service));
+  
+  return ecr;
 }
 
 function buildCrossAccountEcrResourcePolicy(service: SERVICE) {
@@ -89,10 +91,10 @@ function buildCrossAccountEcrResourcePolicy(service: SERVICE) {
   getAccountIdsForService(service).forEach(accountId => {
     accountIdPrincipals.push(new AccountPrincipal(accountId));
   });
-
+  
   // allow IAM users (in management account) to troubleshoot docker image
   accountIdPrincipals.push(new AccountPrincipal(AHA_ORGANIZATION_ACCOUNT));
-
+  
   return new PolicyStatement({
     effect: Effect.ALLOW,
     actions: ['ecr:*'],
@@ -100,8 +102,14 @@ function buildCrossAccountEcrResourcePolicy(service: SERVICE) {
   });
 }
 
-
-export function createServiceImageBuildCodeBuildStep(synth: ShellStep, ecrAccountId: string, region: string, ecrName: string, containerImageBuildCmds: string[]) {
+export function createServiceImageBuildCodeBuildStep(synth: ShellStep, stackCreationInfo: StackCreationInfo, service: SERVICE,
+                                                     containerImageBuildCmds: string[]) {
+  const {
+    region,
+    account,
+    stackPrefix,
+  } = stackCreationInfo;
+  
   return new CodeBuildStep('Build and publish service image', {
     input: synth.addOutputDirectory('./'),
     commands: [],
@@ -112,8 +120,8 @@ export function createServiceImageBuildCodeBuildStep(synth: ShellStep, ecrAccoun
       version: '0.2',
       env: {
         variables: {
-          AWS_ACCOUNT_ID: ecrAccountId,
-          IMAGE_REPO_NAME: ecrName,
+          AWS_ACCOUNT_ID: account,
+          IMAGE_REPO_NAME: getEcrName(stackPrefix, service),
           AWS_REGION: region,
           IMAGE_TAG: 'latest',
         },
@@ -124,32 +132,38 @@ export function createServiceImageBuildCodeBuildStep(synth: ShellStep, ecrAccoun
         },
         build: {
           commands:
-              containerImageBuildCmds.concat([
-                'docker build -t ${IMAGE_REPO_NAME} .',
-                'docker tag ${IMAGE_REPO_NAME}:${IMAGE_TAG} ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${IMAGE_REPO_NAME}:${IMAGE_TAG}',
-              ]),
+            containerImageBuildCmds.concat([
+              'docker build -t ${IMAGE_REPO_NAME} .',
+              'docker tag ${IMAGE_REPO_NAME}:${IMAGE_TAG} ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${IMAGE_REPO_NAME}:${IMAGE_TAG}',
+            ]),
         },
         post_build: {
           commands: 'docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${IMAGE_REPO_NAME}:${IMAGE_TAG}',
         },
       },
     }),
+    // TODO: restrict to only necessary permissions in service stage account
+    rolePolicyStatements: [new PolicyStatement({
+      sid: 'ECRPush',
+      actions: ['ecr:*'],
+      resources: ['*'],
+    })],
   });
 }
 
 export function buildSynthStep(trackingPackages: TrackingPackage[], service: SERVICE, stage: STAGE): ShellStep {
   assert.ok(trackingPackages.length > 0, 'number of tracking packages cannot be 0');
-
+  
   const githubConnectionArn = getAccountInfo(service, stage).githubConnectionArn!;
-  assert.ok(githubConnectionArn, `Github Connection Arn not found for ${ service }, ${ stage }. Is your pipeline hosted here?`);
-
+  assert.ok(githubConnectionArn, `Github Connection Arn not found for ${service}, ${stage}. Is your pipeline hosted here?`);
+  
   // track additional packages
   let additionalInputs: Record<string, IFileSetProducer> = {};
   let primaryPackage: TrackingPackage;
   if (trackingPackages.length > 1) {
     primaryPackage = trackingPackages.shift()!; // in-place remove 1st elem
     trackingPackages.forEach(pkg => {
-      additionalInputs[pkg.package] = CodePipelineSource.connection(`${ GITHUB_ORGANIZATION_NAME }/${ pkg.package }`, pkg.branch ?? 'main', {
+      additionalInputs[pkg.package] = CodePipelineSource.connection(`${GITHUB_ORGANIZATION_NAME}/${pkg.package}`, pkg.branch ?? 'main', {
         connectionArn: githubConnectionArn,
         codeBuildCloneOutput: true,
         triggerOnPush: pkg.triggerOnPush ?? true,
@@ -158,9 +172,9 @@ export function buildSynthStep(trackingPackages: TrackingPackage[], service: SER
   } else {
     primaryPackage = trackingPackages[0];
   }
-
+  
   return new ShellStep('Synth', {
-    input: CodePipelineSource.connection(`${ GITHUB_ORGANIZATION_NAME }/${ primaryPackage.package }`, primaryPackage.branch ?? 'main', {
+    input: CodePipelineSource.connection(`${GITHUB_ORGANIZATION_NAME}/${primaryPackage.package}`, primaryPackage.branch ?? 'main', {
       connectionArn: githubConnectionArn,
       codeBuildCloneOutput: true,
       triggerOnPush: primaryPackage.triggerOnPush ?? true,
@@ -175,6 +189,7 @@ export function buildSynthStep(trackingPackages: TrackingPackage[], service: SER
       'ssh-keygen -F github.com || ssh-keyscan github.com >>~/.ssh/known_hosts',
       'git config --global url."git@github.com:".insteadOf "https://github.com/"',
       'npm install',
+      'npm install aha-common-cdk', // github dependency seems to effectively do npm ci upon npm install, installing it explicitly refreshes it to latest
       'echo "detecting pipeline account ${DEV_ACCOUNT}"',
       'npm run build',
     ],
@@ -182,11 +197,11 @@ export function buildSynthStep(trackingPackages: TrackingPackage[], service: SER
 }
 
 export function createDeploymentWaitStateMachine(scope: Stack, service: SERVICE, waitTimeMins: number): StateMachine {
-  return new StateMachine(scope, `${ service }-Pipeline-WaitStateMachine`, {
+  return new StateMachine(scope, `${service}-Pipeline-WaitStateMachine`, {
     timeout: Duration.minutes(waitTimeMins + 5),
     definition: new Wait(scope, 'Wait', {
       time: WaitTime.duration(Duration.minutes(waitTimeMins)),
-      comment: `wait ${ waitTimeMins }mins for deployment`,
+      comment: `wait ${waitTimeMins}mins for deployment`,
     }).next(new Succeed(scope, 'Completed waiting for deployment')),
   });
 }
@@ -198,16 +213,16 @@ export class DeploymentSfnStep extends Step implements ICodePipelineActionFactor
   ) {
     super('DeploymentSfnStep');
   }
-
+  
   public produceAction(stage: IStage, options: ProduceActionOptions): CodePipelineActionFactoryResult {
     stage.addAction(new cpactions.StepFunctionInvokeAction({
       // Copy 'actionName' and 'runOrder' from the options
       actionName: options.actionName,
       runOrder: options.runOrder,
-
+      
       stateMachine: this.stateMachine,
     }));
-
+    
     return { runOrdersConsumed: 1 };
   }
 }

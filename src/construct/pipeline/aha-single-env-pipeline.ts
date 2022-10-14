@@ -9,17 +9,19 @@ import {
 import assert from 'node:assert';
 import {
   BaseAhaPipelineInfo,
-  buildSynthStep, createDeploymentWaitStateMachine, createEcrRepository,
+  buildSynthStep,
+  // createDeploymentWaitStateMachine,
   createServiceImageBuildCodeBuildStep,
-  DeploymentGroupCreationProps, DeploymentSfnStep,
-  getEcrName,
+  DeploymentGroupCreationProps,
+  // DeploymentSfnStep,
   TrackingPackage,
 } from './pipeline-common';
 import { createStackCreationInfo } from '../../util';
 import { BuildEnvironmentVariableType, BuildSpec } from 'aws-cdk-lib/aws-codebuild';
 import { PolicyStatement } from 'aws-cdk-lib/aws-iam';
 import { StringParameter } from 'aws-cdk-lib/aws-ssm';
-import { StateMachine } from 'aws-cdk-lib/aws-stepfunctions';
+
+// import { StateMachine } from 'aws-cdk-lib/aws-stepfunctions';
 
 /**
  *  Complete single-env pipeline configuration
@@ -48,7 +50,7 @@ export class AhaSingleEnvPipelineStack extends Stack {
   private isDeploymentStageSet: boolean = false;
   private readonly synthStep: ShellStep;
   
-  private readonly deploymentWaitStateMachine: StateMachine;
+  // private readonly deploymentWaitStateMachine: StateMachine;
   
   constructor(scope: Construct, id: string,
               private readonly props: AhaSingleEnvPipelineProps) {
@@ -59,9 +61,8 @@ export class AhaSingleEnvPipelineStack extends Stack {
       },
     });
     
-    this.deploymentGroupCreationProps = this.buildSingleStageDeploymentGroupCreationProps(this.props.pipelineInfo.pipelineAccount, props.pipelineInfo.stage);
-    
-    createEcrRepository(this, this.deploymentGroupCreationProps.stackCreationInfo.stackPrefix, props.pipelineInfo.service);
+    this.deploymentGroupCreationProps = this.buildSingleStageDeploymentGroupCreationProps(
+      this.props.pipelineInfo.pipelineAccount, props.pipelineInfo.stage);
     
     // githubSshPrivateKey is retrieved from pipeline account parameter store.
     // new pipeline account must create this manually at https://ap-northeast-1.console.aws.amazon.com/systems-manager/parameters/?region=ap-northeast-1
@@ -75,7 +76,7 @@ export class AhaSingleEnvPipelineStack extends Stack {
       synthCodeBuildDefaults: {
         buildEnvironment: {
           environmentVariables: {
-            'DEV_ACCOUNT': {
+            DEV_ACCOUNT: {
               type: BuildEnvironmentVariableType.PLAINTEXT,
               value: props.pipelineInfo.pipelineAccount,
             },
@@ -92,13 +93,13 @@ export class AhaSingleEnvPipelineStack extends Stack {
               'runtime-versions': {
                 nodejs: '14',
               },
-              commands: ['n 16'],
+              'commands': ['n 16'],
             },
           },
         }),
         buildEnvironment: {
           environmentVariables: {
-            'SSH_PRIVATE_KEY': {
+            SSH_PRIVATE_KEY: {
               type: BuildEnvironmentVariableType.PLAINTEXT,
               value: githubSshPrivateKey,
             },
@@ -117,7 +118,7 @@ export class AhaSingleEnvPipelineStack extends Stack {
       },
     });
     
-    this.deploymentWaitStateMachine = createDeploymentWaitStateMachine(this, props.pipelineInfo.service, props.pipelineInfo.deploymentWaitTimeMins);
+    // this.deploymentWaitStateMachine = createDeploymentWaitStateMachine(this, props.pipelineInfo.service, props.pipelineInfo.deploymentWaitTimeMins);
   }
   
   /**
@@ -128,25 +129,27 @@ export class AhaSingleEnvPipelineStack extends Stack {
    * TODO: post-stack deployment: 1. insert deployment wait time 2. run integration test
    *
    * @param stackCreationInfo - the env that infrastructure stacks is being deployed to
-   * @param deploymentStage - The collection of infrastructure stacks for this env
-   *
+   * @param ecrStack - "Bring your own batteries" - ECR is expected in service account following naming convention provided by @link{getEcrName()}
+   *                   ECR cannot be centralized in pipeline account because App Runner does not allow x-account auto-deployment
    */
-  public addDeploymentStage(stackCreationInfo: StackCreationInfo, deploymentStage: Stage): void {
+  public addDeploymentStage(stackCreationInfo: StackCreationInfo, deploymentStacksStage: Stage, ecrStack: Stack): void {
     assert.strictEqual(this.isDeploymentStageSet, false, 'deployment stage already created! Only 1 deployment stage allowed for single env pipeline');
     
-    this.pipeline.addStage(deploymentStage,
+    this.pipeline.addStage(deploymentStacksStage,
       {
-        pre: [createServiceImageBuildCodeBuildStep(
-          this.synthStep,
-          this.props.pipelineInfo.pipelineAccount,
-          stackCreationInfo.region,
-          getEcrName(stackCreationInfo.stackPrefix, this.props.pipelineInfo.service),
-          this.props.pipelineInfo.containerImageBuildCmds)],
+        stackSteps: [{
+          stack: ecrStack,
+          post: [createServiceImageBuildCodeBuildStep(
+            this.synthStep,
+            stackCreationInfo,
+            this.props.pipelineInfo.service,
+            this.props.pipelineInfo.containerImageBuildCmds)],
+        }],
         post:
           Step.sequence([
             // used to wait for deployment completion
             // TODO: use deployment health check instead https://app.zenhub.com/workspaces/back-edtech-623a878cdf3d780017775a34/issues/earnaha/api-core/1709
-            new DeploymentSfnStep(this.deploymentWaitStateMachine),
+            // new DeploymentSfnStep(this.deploymentWaitStateMachine),
             // TODO: Timmy - test Jenkins integration
             // new AhaJenkinsIntegrationTestStep(this.props.pipelineInfo.service, this.props.pipelineInfo.stage),
           ]),

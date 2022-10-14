@@ -2,7 +2,7 @@ import { Stack, StackProps, Stage } from 'aws-cdk-lib';
 import { BuildEnvironmentVariableType, BuildSpec } from 'aws-cdk-lib/aws-codebuild';
 import { PolicyStatement } from 'aws-cdk-lib/aws-iam';
 import { StringParameter } from 'aws-cdk-lib/aws-ssm';
-import { StateMachine } from 'aws-cdk-lib/aws-stepfunctions';
+// import { StateMachine } from 'aws-cdk-lib/aws-stepfunctions';
 import { CodePipeline, ManualApprovalStep, ShellStep, Step } from 'aws-cdk-lib/pipelines';
 import { Construct } from 'constructs';
 import { AHA_DEFAULT_REGION, REGION, StackCreationInfo, STAGE } from '../../constant';
@@ -10,12 +10,10 @@ import { createStackCreationInfo, getAccountInfo, getStagesForService } from '..
 import {
   BaseAhaPipelineInfo,
   buildSynthStep,
-  createDeploymentWaitStateMachine,
-  createEcrRepository,
+  // createDeploymentWaitStateMachine,
   createServiceImageBuildCodeBuildStep,
   DeploymentGroupCreationProps,
-  DeploymentSfnStep,
-  getEcrName,
+  // DeploymentSfnStep,
   TrackingPackage,
 } from './pipeline-common';
 
@@ -52,7 +50,7 @@ export class AhaPipelineStack extends Stack {
   private readonly props: AhaPipelineProps;
   private readonly synthStep: ShellStep;
   
-  private readonly deploymentWaitStateMachine: StateMachine;
+  // private readonly deploymentWaitStateMachine: StateMachine;
   
   constructor(scope: Construct, id: string, props: AhaPipelineProps) {
     super(scope, id, {
@@ -64,8 +62,6 @@ export class AhaPipelineStack extends Stack {
     this.props = props;
     
     this.buildDeploymentGroupCreationProps(props);
-    
-    this.createEcrRepositories();
     
     // githubSshPrivateKey is retrieved from pipeline account parameter store.
     // new pipeline account must create this manually at https://ap-northeast-1.console.aws.amazon.com/systems-manager/parameters/?region=ap-northeast-1
@@ -120,8 +116,7 @@ export class AhaPipelineStack extends Stack {
         ],
       },
     });
-    
-    this.deploymentWaitStateMachine = createDeploymentWaitStateMachine(this, props.pipelineInfo.service, props.pipelineInfo.deploymentWaitTimeMins);
+    // this.deploymentWaitStateMachine = createDeploymentWaitStateMachine(this, props.pipelineInfo.service, props.pipelineInfo.deploymentWaitTimeMins);
   }
   
   /**
@@ -133,29 +128,31 @@ export class AhaPipelineStack extends Stack {
    *
    * @param deploymentStacksStage - The collection of infrastructure stacks for this env
    * @param stackCreationInfo - the env that infrastructure stacks is being deployed to
+   * @param ecrStack - "Bring your own batteries" - ECR is expected in service account following naming convention provided by @link{getEcrName()}
+   *                   ECR cannot be centralized in pipeline account because App Runner does not allow x-account auto-deployment
    */
-  public addDeploymentStage(stackCreationInfo: StackCreationInfo, deploymentStacksStage: Stage): void {
+  public addDeploymentStage(stackCreationInfo: StackCreationInfo, deploymentStacksStage: Stage, ecrStack: Stack): void {
     let preSteps: Step[] = [];
-  
     if (stackCreationInfo.stage == STAGE.PROD && this.props.pipelineInfo.prodManualApproval) {
       preSteps.push(new ManualApprovalStep('PromoteToProd'));
     }
     
-    preSteps.push(createServiceImageBuildCodeBuildStep(
-      this.synthStep,
-      this.props.pipelineInfo.pipelineAccount,
-      stackCreationInfo.region,
-      getEcrName(stackCreationInfo.stackPrefix, this.props.pipelineInfo.service),
-      this.props.pipelineInfo.containerImageBuildCmds));
-    
     this.pipeline.addStage(deploymentStacksStage,
       {
         pre: Step.sequence(preSteps),
+        stackSteps: [{
+          stack: ecrStack,
+          post: [createServiceImageBuildCodeBuildStep(
+            this.synthStep,
+            stackCreationInfo,
+            this.props.pipelineInfo.service,
+            this.props.pipelineInfo.containerImageBuildCmds)],
+        }],
         post:
           Step.sequence([
-            // used to wait for deployment completion
-            // TODO: use deployment health check instead https://app.zenhub.com/workspaces/back-edtech-623a878cdf3d780017775a34/issues/earnaha/api-core/1709
-            new DeploymentSfnStep(this.deploymentWaitStateMachine),
+            // // used to wait for deployment completion
+            // // TODO: use deployment health check instead https://app.zenhub.com/workspaces/back-edtech-623a878cdf3d780017775a34/issues/earnaha/api-core/1709
+            // new DeploymentSfnStep(this.deploymentWaitStateMachine),
             // TODO: Timmy - test Jenkins integration
             // new AhaJenkinsIntegrationTestStep(this.props.pipelineInfo.service, this.props.pipelineInfo.stage),
           ]),
@@ -182,12 +179,6 @@ export class AhaPipelineStack extends Stack {
           AHA_DEFAULT_REGION,
           stage),
       });
-    });
-  }
-  
-  private createEcrRepositories(): void {
-    this.deploymentGroupCreationProps.forEach(props => {
-      createEcrRepository(this, props.stackCreationInfo.stackPrefix, this.props.pipelineInfo.service);
     });
   }
   
