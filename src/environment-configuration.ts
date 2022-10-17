@@ -19,11 +19,16 @@ export type EnvironmentConfiguration = {
   readonly [key in STAGE]: StageInfo;
 };
 
+export const AHA_OPS_ACCOUNT = 462602131761;
+
 export const environmentConfiguration: EnvironmentConfiguration = {
   [STAGE.ALPHA]: {
     [SERVICE.API_CORE]: {
       accountId: '275636488910',
       githubConnectionArn: 'arn:aws:codestar-connections:ap-northeast-1:275636488910:connection/3891f5fb-5d61-4e89-9bc7-3690798b049e',
+    },
+    [SERVICE.API_AUTH]: {
+      accountId: '427287191619',
     },
   },
   [STAGE.BETA]: {
@@ -31,16 +36,25 @@ export const environmentConfiguration: EnvironmentConfiguration = {
       accountId: '756713672993',
       githubConnectionArn: 'arn:aws:codestar-connections:ap-northeast-1:756713672993:connection/c345ae61-ea3e-4e91-99fb-36c881a75545',
     },
+    [SERVICE.API_AUTH]: {
+      accountId: '698022483365',
+    },
   },
   [STAGE.GAMMA]: {
     [SERVICE.API_CORE]: {
       accountId: '522648679392',
+    },
+    [SERVICE.API_AUTH]: {
+      accountId: '727449454366',
     },
   },
   [STAGE.PROD]: {
     [SERVICE.API_CORE]: {
       accountId: '984822508163',
       githubConnectionArn: 'arn:aws:codestar-connections:ap-northeast-1:984822508163:connection/5ff43d42-1be8-41d7-a29b-8f469da6cb40',
+    },
+    [SERVICE.API_AUTH]: {
+      accountId: '142013183369',
     },
   },
 };
