@@ -237,7 +237,7 @@ export class AhaJenkinsIntegrationTestStep extends Step implements ICodePipeline
   ) {
     super('JenkinsIntegrationTest');
 
-    this.provider = new cpactions.JenkinsProvider(this.scope, 'JenkinsProvider', {
+    this.provider = new cpactions.JenkinsProvider(this.scope, `${service}-${stage}-JenkinsProvider`, {
       providerName: this.getJenkinsData(this.stage),
       serverUrl: 'https://it.earnaha.com',
       version: '1', // optional, default: '1'
