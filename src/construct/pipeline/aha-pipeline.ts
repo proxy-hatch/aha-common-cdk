@@ -15,6 +15,7 @@ import {
   DeploymentGroupCreationProps,
   // DeploymentSfnStep,
   TrackingPackage,
+  AhaJenkinsIntegrationTestStep,
 } from './pipeline-common';
 
 /**
@@ -49,9 +50,9 @@ export class AhaPipelineStack extends Stack {
   public readonly pipeline: CodePipeline;
   private readonly props: AhaPipelineProps;
   private readonly synthStep: ShellStep;
-  
+
   // private readonly deploymentWaitStateMachine: StateMachine;
-  
+
   constructor(scope: Construct, id: string, props: AhaPipelineProps) {
     super(scope, id, {
       env: {
@@ -60,14 +61,14 @@ export class AhaPipelineStack extends Stack {
       },
     });
     this.props = props;
-    
+
     this.buildDeploymentGroupCreationProps(props);
-    
+
     // githubSshPrivateKey is retrieved from pipeline account parameter store.
     // new pipeline account must create this manually at https://ap-northeast-1.console.aws.amazon.com/systems-manager/parameters/?region=ap-northeast-1
     // TODO: should be retrieved from central account secrets manager https://app.zenhub.com/workspace/o/earnaha/api-core/issues/1763
     const githubSshPrivateKey = StringParameter.valueForStringParameter(this, 'github-ssh-private-key');
-    
+
     this.synthStep = buildSynthStep(props.trackingPackages, props.pipelineInfo.service, STAGE.BETA);
     this.pipeline = new CodePipeline(this, 'Pipeline', {
       crossAccountKeys: true, // allow multi-account envs by KMS encrypting artifact bucket
@@ -118,7 +119,7 @@ export class AhaPipelineStack extends Stack {
     });
     // this.deploymentWaitStateMachine = createDeploymentWaitStateMachine(this, props.pipelineInfo.service, props.pipelineInfo.deploymentWaitTimeMins);
   }
-  
+
   /**
    * Adds the deployment stacks in a single stage to the pipeline env. User of this construct is expected to call this method for all stages.
    *
@@ -136,7 +137,7 @@ export class AhaPipelineStack extends Stack {
     if (stackCreationInfo.stage == STAGE.PROD && this.props.pipelineInfo.prodManualApproval) {
       preSteps.push(new ManualApprovalStep('PromoteToProd'));
     }
-    
+
     this.pipeline.addStage(deploymentStacksStage,
       {
         pre: Step.sequence(preSteps),
@@ -153,18 +154,17 @@ export class AhaPipelineStack extends Stack {
             // // used to wait for deployment completion
             // // TODO: use deployment health check instead https://app.zenhub.com/workspaces/back-edtech-623a878cdf3d780017775a34/issues/earnaha/api-core/1709
             // new DeploymentSfnStep(this.deploymentWaitStateMachine),
-            // TODO: Timmy - test Jenkins integration
-            // new AhaJenkinsIntegrationTestStep(this.props.pipelineInfo.service, this.props.pipelineInfo.stage),
+            new AhaJenkinsIntegrationTestStep(this, this.props.pipelineInfo.service, stackCreationInfo.stage, this.synthStep.addOutputDirectory('autotest')),
           ]),
       });
   }
-  
+
   private buildDeploymentGroupCreationProps(props: AhaPipelineProps): void {
     const {
       service,
       skipProdStages,
     } = props.pipelineInfo;
-    
+
     getStagesForService(service).forEach(stage => {
       if (stage == STAGE.ALPHA) {
         return;
@@ -172,7 +172,7 @@ export class AhaPipelineStack extends Stack {
       if (skipProdStages && stage == STAGE.PROD) {
         return;
       }
-      
+
       this.deploymentGroupCreationProps.push({
         stackCreationInfo: createStackCreationInfo(
           getAccountInfo(service, stage).accountId,
@@ -181,5 +181,5 @@ export class AhaPipelineStack extends Stack {
       });
     });
   }
-  
+
 }

@@ -1,12 +1,13 @@
-import { Construct } from 'constructs';
+import assert from 'node:assert';
 import { Stack, StackProps, Stage } from 'aws-cdk-lib';
+// import { StateMachine } from 'aws-cdk-lib/aws-stepfunctions';
 import { CodePipeline, ShellStep, Step } from 'aws-cdk-lib/pipelines';
+import { Construct } from 'constructs';
 import {
   AHA_DEFAULT_REGION,
   REGION, StackCreationInfo,
   STAGE,
 } from '../../constant';
-import assert from 'node:assert';
 import {
   BaseAhaPipelineInfo,
   buildSynthStep,
@@ -15,6 +16,7 @@ import {
   DeploymentGroupCreationProps,
   // DeploymentSfnStep,
   TrackingPackage,
+  AhaJenkinsIntegrationTestStep,
 } from './pipeline-common';
 import { createStackCreationInfo } from '../../util';
 import { BuildEnvironmentVariableType, BuildSpec } from 'aws-cdk-lib/aws-codebuild';
@@ -28,7 +30,7 @@ import { StringParameter } from 'aws-cdk-lib/aws-ssm';
  */
 export interface AhaSingleEnvPipelineProps extends StackProps {
   readonly pipelineInfo: AhaSingleEnvPipelineInfo;
-  readonly trackingPackages: TrackingPackage[];  // the 1st must be service package
+  readonly trackingPackages: TrackingPackage[]; // the 1st must be service package
 }
 
 export interface AhaSingleEnvPipelineInfo extends BaseAhaPipelineInfo {
@@ -49,9 +51,9 @@ export class AhaSingleEnvPipelineStack extends Stack {
   public readonly pipeline: CodePipeline;
   private isDeploymentStageSet: boolean = false;
   private readonly synthStep: ShellStep;
-  
+
   // private readonly deploymentWaitStateMachine: StateMachine;
-  
+
   constructor(scope: Construct, id: string,
               private readonly props: AhaSingleEnvPipelineProps) {
     super(scope, id, {
@@ -60,15 +62,15 @@ export class AhaSingleEnvPipelineStack extends Stack {
         account: props.pipelineInfo.pipelineAccount,
       },
     });
-    
+
     this.deploymentGroupCreationProps = this.buildSingleStageDeploymentGroupCreationProps(
       this.props.pipelineInfo.pipelineAccount, props.pipelineInfo.stage);
-    
+
     // githubSshPrivateKey is retrieved from pipeline account parameter store.
     // new pipeline account must create this manually at https://ap-northeast-1.console.aws.amazon.com/systems-manager/parameters/?region=ap-northeast-1
     // TODO: should be retrieved from central account secrets manager https://app.zenhub.com/workspace/o/earnaha/api-core/issues/1763
     const githubSshPrivateKey = StringParameter.valueForStringParameter(this, 'github-ssh-private-key');
-    
+
     this.synthStep = buildSynthStep(props.trackingPackages, props.pipelineInfo.service, props.pipelineInfo.stage);
     this.pipeline = new CodePipeline(this, 'Pipeline', {
       crossAccountKeys: false, // allow multi-account envs by KMS encrypting artifact bucket
@@ -117,10 +119,10 @@ export class AhaSingleEnvPipelineStack extends Stack {
         ],
       },
     });
-    
+
     // this.deploymentWaitStateMachine = createDeploymentWaitStateMachine(this, props.pipelineInfo.service, props.pipelineInfo.deploymentWaitTimeMins);
   }
-  
+
   /**
    * Adds the deployment stacks in a single stage to the pipeline env.
    *
@@ -134,7 +136,7 @@ export class AhaSingleEnvPipelineStack extends Stack {
    */
   public addDeploymentStage(stackCreationInfo: StackCreationInfo, deploymentStacksStage: Stage, ecrStack: Stack): void {
     assert.strictEqual(this.isDeploymentStageSet, false, 'deployment stage already created! Only 1 deployment stage allowed for single env pipeline');
-    
+
     this.pipeline.addStage(deploymentStacksStage,
       {
         stackSteps: [{
@@ -150,14 +152,13 @@ export class AhaSingleEnvPipelineStack extends Stack {
             // used to wait for deployment completion
             // TODO: use deployment health check instead https://app.zenhub.com/workspaces/back-edtech-623a878cdf3d780017775a34/issues/earnaha/api-core/1709
             // new DeploymentSfnStep(this.deploymentWaitStateMachine),
-            // TODO: Timmy - test Jenkins integration
-            // new AhaJenkinsIntegrationTestStep(this.props.pipelineInfo.service, this.props.pipelineInfo.stage),
+            new AhaJenkinsIntegrationTestStep(this, this.props.pipelineInfo.service, this.props.pipelineInfo.stage, this.synthStep.addOutputDirectory('autotest')),
           ]),
       });
-    
+
     this.isDeploymentStageSet = true;
   }
-  
+
   private buildSingleStageDeploymentGroupCreationProps(accountId: string, stage: STAGE): DeploymentGroupCreationProps {
     return {
       stackCreationInfo: createStackCreationInfo(
@@ -166,5 +167,5 @@ export class AhaSingleEnvPipelineStack extends Stack {
         stage),
     };
   }
-  
+
 }

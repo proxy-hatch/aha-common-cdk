@@ -14,7 +14,7 @@ import {
   ShellStep,
   Step,
 } from 'aws-cdk-lib/pipelines';
-import { IFileSetProducer } from 'aws-cdk-lib/pipelines/lib/blueprint/file-set';
+import { FileSet, IFileSetProducer } from 'aws-cdk-lib/pipelines/lib/blueprint/file-set';
 import {
   GITHUB_ORGANIZATION_NAME,
   SERVICE,
@@ -79,9 +79,9 @@ export function createEcrRepository(scope: Stack, stackCreationPrefix: string, s
       }],
     },
   );
-  
+
   ecr.addToResourcePolicy(buildCrossAccountEcrResourcePolicy(service));
-  
+
   return ecr;
 }
 
@@ -91,10 +91,10 @@ function buildCrossAccountEcrResourcePolicy(service: SERVICE) {
   getAccountIdsForService(service).forEach(accountId => {
     accountIdPrincipals.push(new AccountPrincipal(accountId));
   });
-  
+
   // allow IAM users (in management account) to troubleshoot docker image
   accountIdPrincipals.push(new AccountPrincipal(AHA_ORGANIZATION_ACCOUNT));
-  
+
   return new PolicyStatement({
     effect: Effect.ALLOW,
     actions: ['ecr:*'],
@@ -109,7 +109,7 @@ export function createServiceImageBuildCodeBuildStep(synth: ShellStep, stackCrea
     account,
     stackPrefix,
   } = stackCreationInfo;
-  
+
   return new CodeBuildStep('Build and publish service image', {
     input: synth.addOutputDirectory('./'),
     commands: [],
@@ -153,10 +153,10 @@ export function createServiceImageBuildCodeBuildStep(synth: ShellStep, stackCrea
 
 export function buildSynthStep(trackingPackages: TrackingPackage[], service: SERVICE, stage: STAGE): ShellStep {
   assert.ok(trackingPackages.length > 0, 'number of tracking packages cannot be 0');
-  
+
   const githubConnectionArn = getAccountInfo(service, stage).githubConnectionArn!;
   assert.ok(githubConnectionArn, `Github Connection Arn not found for ${service}, ${stage}. Is your pipeline hosted here?`);
-  
+
   // track additional packages
   let additionalInputs: Record<string, IFileSetProducer> = {};
   let primaryPackage: TrackingPackage;
@@ -172,7 +172,7 @@ export function buildSynthStep(trackingPackages: TrackingPackage[], service: SER
   } else {
     primaryPackage = trackingPackages[0];
   }
-  
+
   return new ShellStep('Synth', {
     input: CodePipelineSource.connection(`${GITHUB_ORGANIZATION_NAME}/${primaryPackage.package}`, primaryPackage.branch ?? 'main', {
       connectionArn: githubConnectionArn,
@@ -213,59 +213,70 @@ export class DeploymentSfnStep extends Step implements ICodePipelineActionFactor
   ) {
     super('DeploymentSfnStep');
   }
-  
+
   public produceAction(stage: IStage, options: ProduceActionOptions): CodePipelineActionFactoryResult {
     stage.addAction(new cpactions.StepFunctionInvokeAction({
       // Copy 'actionName' and 'runOrder' from the options
       actionName: options.actionName,
       runOrder: options.runOrder,
-      
+
       stateMachine: this.stateMachine,
     }));
-    
+
     return { runOrdersConsumed: 1 };
   }
 }
 
-// TODO: Timmy - add Jenkins test
-// ref: https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.pipelines-readme.html#arbitrary-codepipeline-actions
-// export class AhaJenkinsIntegrationTestStep extends Step implements ICodePipelineActionFactory {
-//   constructor(
-//       private readonly service: SERVICE,
-//       private readonly stage: STAGE,
-//       // private readonly input: FileSet, // No need if no input required
-//   ) {
-//     super('MyJenkinsStep');
-//
-//     let provider: cpactions.JenkinsProvider;
-//     // TODO: Timmy - determine Jenkins provider and any other necessary Jenkins param from service and stage
-//
-//     // This is necessary if your step accepts parametres, like environment variables,
-//     // that may contain outputs from other steps. It doesn't matter what the
-//     // structure is, as long as it contains the values that may contain outputs.
-//     // this.discoverReferencedOutputs({
-//     //   env: { /* ... */ }
-//     // });
-//   }
-//
-//   public produceAction(stage: IStage, options: ProduceActionOptions): CodePipelineActionFactoryResult {
-//
-//     // This is where you control what type of Action gets added to the
-//     // CodePipeline
-//     stage.addAction(new cpactions.JenkinsAction({
-//       // Copy 'actionName' and 'runOrder' from the options
-//       actionName: options.actionName,
-//       runOrder: options.runOrder,
-//
-//       // Jenkins-specific configuration
-//       type: cpactions.JenkinsActionType.TEST,
-//       jenkinsProvider: this.provider,
-//       projectName: 'MyJenkinsProject',
-//
-//       // Translate the FileSet into a codepipeline.Artifact
-//       inputs: [options.artifacts.toCodePipeline(this.input)],
-//     }));
-//
-//     return { runOrdersConsumed: 1 };
-//   }
-// }
+export class AhaJenkinsIntegrationTestStep extends Step implements ICodePipelineActionFactory {
+  provider: cpactions.JenkinsProvider;
+  constructor(
+      private readonly scope: Stack,
+      private readonly service: SERVICE,
+      private readonly stage: STAGE,
+      private readonly input: FileSet,
+  ) {
+    super('JenkinsIntegrationTest');
+
+    this.provider = new cpactions.JenkinsProvider(this.scope, 'JenkinsProvider', {
+      providerName: this.getJenkinsData(this.stage),
+      serverUrl: 'https://it.earnaha.com',
+      version: '1', // optional, default: '1'
+    });
+  }
+
+  public produceAction(stage: IStage, options: ProduceActionOptions): CodePipelineActionFactoryResult {
+    if (this.service !== SERVICE.API_CORE) {
+      return { runOrdersConsumed: 0 };
+    }
+
+    stage.addAction(new cpactions.JenkinsAction({
+      // Copy 'actionName' and 'runOrder' from the options
+      actionName: options.actionName,
+      runOrder: options.runOrder,
+
+      // Jenkins-specific configuration
+      type: cpactions.JenkinsActionType.TEST,
+      jenkinsProvider: this.provider,
+      projectName: this.getJenkinsData(this.stage),
+
+      // Translate the FileSet into a codepipeline.Artifact
+      inputs: [options.artifacts.toCodePipeline(this.input)],
+    }));
+
+    return { runOrdersConsumed: 1 };
+  }
+
+  private getJenkinsData(stage: STAGE): string {
+    switch (stage) {
+      case 'prod':
+        return 'AWSTest_Prod';
+      case 'gamma':
+        return 'AWSTest_Gamma';
+      case 'beta':
+        return 'AWSTest_Beta';
+      default:
+        return 'AWSTest_Alpha';
+    }
+  }
+
+}
