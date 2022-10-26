@@ -1,20 +1,16 @@
-import assert from 'node:assert';
-import { Stack, StackProps, Stage } from 'aws-cdk-lib';
-// import { StateMachine } from 'aws-cdk-lib/aws-stepfunctions';
-import { CodePipeline, ShellStep, Step } from 'aws-cdk-lib/pipelines';
 import { Construct } from 'constructs';
-import {
-  AHA_DEFAULT_REGION,
-  REGION, StackCreationInfo,
-  STAGE,
-} from '../../constant';
+import { Stack, StackProps, Stage } from 'aws-cdk-lib';
+import { CodePipeline, ShellStep, Step } from 'aws-cdk-lib/pipelines';
+import { AHA_DEFAULT_REGION, REGION, SERVICE, StackCreationInfo, STAGE } from '../../constant';
+import assert from 'node:assert';
 import {
   BaseAhaPipelineInfo,
   buildSynthStep,
-  // createDeploymentWaitStateMachine,
+  createCompleteDeploymentStep,
+  createDeploymentWaitStateMachine,
   createServiceImageBuildCodeBuildStep,
   DeploymentGroupCreationProps,
-  // DeploymentSfnStep,
+  DeploymentSfnStep,
   TrackingPackage,
   AhaJenkinsIntegrationTestStep,
 } from './pipeline-common';
@@ -23,7 +19,7 @@ import { BuildEnvironmentVariableType, BuildSpec } from 'aws-cdk-lib/aws-codebui
 import { PolicyStatement } from 'aws-cdk-lib/aws-iam';
 import { StringParameter } from 'aws-cdk-lib/aws-ssm';
 
-// import { StateMachine } from 'aws-cdk-lib/aws-stepfunctions';
+import { StateMachine } from 'aws-cdk-lib/aws-stepfunctions';
 
 /**
  *  Complete single-env pipeline configuration
@@ -51,9 +47,9 @@ export class AhaSingleEnvPipelineStack extends Stack {
   public readonly pipeline: CodePipeline;
   private isDeploymentStageSet: boolean = false;
   private readonly synthStep: ShellStep;
-
-  // private readonly deploymentWaitStateMachine: StateMachine;
-
+  
+  private readonly deploymentWaitStateMachine: StateMachine;
+  
   constructor(scope: Construct, id: string,
               private readonly props: AhaSingleEnvPipelineProps) {
     super(scope, id, {
@@ -119,8 +115,8 @@ export class AhaSingleEnvPipelineStack extends Stack {
         ],
       },
     });
-
-    // this.deploymentWaitStateMachine = createDeploymentWaitStateMachine(this, props.pipelineInfo.service, props.pipelineInfo.deploymentWaitTimeMins);
+    
+    this.deploymentWaitStateMachine = createDeploymentWaitStateMachine(this, props.pipelineInfo.service, props.pipelineInfo.deploymentWaitTimeMins);
   }
 
   /**
@@ -136,24 +132,35 @@ export class AhaSingleEnvPipelineStack extends Stack {
    */
   public addDeploymentStage(stackCreationInfo: StackCreationInfo, deploymentStacksStage: Stage, ecrStack: Stack): void {
     assert.strictEqual(this.isDeploymentStageSet, false, 'deployment stage already created! Only 1 deployment stage allowed for single env pipeline');
+    
+    const serviceImageBuildStep = createServiceImageBuildCodeBuildStep(
+      this.synthStep.addOutputDirectory('./'),
+      stackCreationInfo,
+      this.props.pipelineInfo.service,
+      this.props.pipelineInfo.containerImageBuildCmds);
+    
+    const stagePostSteps: Step[] = [];
+    // used to wait for deployment completion
+    // TODO: use deployment health check instead https://app.zenhub.com/workspaces/back-edtech-623a878cdf3d780017775a34/issues/earnaha/api-core/1709
+    stagePostSteps.push(new DeploymentSfnStep(this.deploymentWaitStateMachine));
 
+    stagePostSteps.push(new AhaJenkinsIntegrationTestStep(this, this.props.pipelineInfo.service, this.props.pipelineInfo.stage, this.synthStep.addOutputDirectory('autotest')));
+    
+    if (this.props.pipelineInfo.service === SERVICE.API_CORE) {
+      stagePostSteps.push(createCompleteDeploymentStep(
+        serviceImageBuildStep.addOutputDirectory('./'),
+        stackCreationInfo,
+        this.props.pipelineInfo.completeDeploymentCmds!));
+    }
+    
     this.pipeline.addStage(deploymentStacksStage,
       {
         stackSteps: [{
           stack: ecrStack,
-          post: [createServiceImageBuildCodeBuildStep(
-            this.synthStep,
-            stackCreationInfo,
-            this.props.pipelineInfo.service,
-            this.props.pipelineInfo.containerImageBuildCmds)],
+          post: [serviceImageBuildStep],
         }],
         post:
-          Step.sequence([
-            // used to wait for deployment completion
-            // TODO: use deployment health check instead https://app.zenhub.com/workspaces/back-edtech-623a878cdf3d780017775a34/issues/earnaha/api-core/1709
-            // new DeploymentSfnStep(this.deploymentWaitStateMachine),
-            new AhaJenkinsIntegrationTestStep(this, this.props.pipelineInfo.service, this.props.pipelineInfo.stage, this.synthStep.addOutputDirectory('autotest')),
-          ]),
+          Step.sequence(stagePostSteps),
       });
 
     this.isDeploymentStageSet = true;
