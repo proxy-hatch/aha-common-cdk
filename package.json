@@ -46,7 +46,6 @@
   },
   "homepage": "https://github.com/EarnAha/common-cdk#readme",
   "dependencies": {
-    "constructs": "^10.1.129",
-    "util": "^0.12.5"
+    "constructs": "^10.1.129"
   }
 }

@@ -1,6 +1,4 @@
-import { SERVICE, STAGE } from './constant';
-
-export const AHA_ORGANIZATION_ACCOUNT = '083784680548';
+import { SERVICE, STAGE, STAGELESS_SERVICE } from './constant';
 
 export interface AccountInfo {
   readonly accountId: string;
@@ -19,7 +17,16 @@ export type EnvironmentConfiguration = {
   readonly [key in STAGE]: StageInfo;
 };
 
-export const AHA_OPS_ACCOUNT = 462602131761;
+
+export const AHA_ORGANIZATION_ACCOUNT = '083784680548';
+export const stagelessEnvironmentConfiguration: StageInfo = {
+  [STAGELESS_SERVICE.DNS_MANAGEMENT]: {
+    accountId: '992993174366',
+  },
+  [STAGELESS_SERVICE.OPS]: {
+    accountId: '462602131761',
+  },
+};
 
 export const environmentConfiguration: EnvironmentConfiguration = {
   [STAGE.ALPHA]: {

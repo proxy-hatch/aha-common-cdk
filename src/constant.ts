@@ -19,6 +19,11 @@ export enum SERVICE {
   API_AUTH = 'api-auth',
 }
 
+export enum STAGELESS_SERVICE {
+  DNS_MANAGEMENT = 'DnsManagement',
+  OPS = 'ops',
+}
+
 export interface StackCreationInfo {
   readonly account: string;
   readonly region: string;

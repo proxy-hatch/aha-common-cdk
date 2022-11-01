@@ -35,7 +35,6 @@ export interface AhaPipelineProps extends StackProps {
   readonly trackingPackages: TrackingPackage[]; // the 1st must be service package
 }
 
-
 /**
  * Creates a CDK-managed pipeline for Aha back-end service, built with CodeBuild
  *
