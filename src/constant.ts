@@ -17,7 +17,7 @@ export enum STAGE {
 export enum SERVICE {
   API_CORE = 'api-core',
   API_AUTH = 'api-auth',
-  NFT_MGMT_SERVICE = 'nft-mgmt-service',
+  NFT_MGMT_SERVICE = 'NftManagementService',
 }
 
 export enum STAGELESS_SERVICE {
