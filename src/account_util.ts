@@ -1,10 +1,10 @@
-import { AHA_DEFAULT_REGION, SERVICE, StackCreationInfo, STAGE } from './constant';
 import assert from 'assert';
 import { Environment } from 'aws-cdk-lib';
+import { AHA_DEFAULT_REGION, SERVICE, StackCreationInfo, STAGE, STAGELESS_SERVICE } from './constant';
 import {
   AccountInfo,
   alphaEnvironmentConfiguration,
-  sharedStageEnvironmentConfiguration,
+  sharedStageEnvironmentConfiguration, stagelessEnvironmentConfiguration,
 } from './environment-configuration';
 
 
@@ -30,7 +30,10 @@ export function createStackCreationInfo(account: string, region: string = AHA_DE
 }
 
 export function getEnvFromStackCreationInfo(stackCreationInfo: StackCreationInfo): Environment {
-  const { account, region } = stackCreationInfo;
+  const {
+    account,
+    region,
+  } = stackCreationInfo;
 
   return {
     account: account,
@@ -47,10 +50,10 @@ export function getEnvFromStackCreationInfo(stackCreationInfo: StackCreationInfo
  * @param service {@link SERVICE}
  */
 export function getSharedStageAccountIds(): string[] {
-  let accountIds = [];
+  const accountIds = [];
 
-  for (let key of Object.keys(sharedStageEnvironmentConfiguration)) {
-      accountIds.push(sharedStageEnvironmentConfiguration[<STAGE>(key)].accountId);
+  for (const key of Object.keys(sharedStageEnvironmentConfiguration)) {
+    accountIds.push(sharedStageEnvironmentConfiguration[<STAGE>(key)].accountId);
   }
 
   return accountIds;
@@ -83,15 +86,18 @@ export function getAccountInfo(service: SERVICE, stage: STAGE): AccountInfo {
  * @param stage {@link STAGE}
  */
 export function getAccountId(service: SERVICE, stage: STAGE): string {
-  return getAccountInfo(service,stage).accountId;
+  return getAccountInfo(service, stage).accountId;
 }
 
+/**
+ * Returns the account ID that a stageless-service has configured
+ *
+ * @returns accountId
+ *
+ * @param stagelessService
+ */
+export function getStagelessServiceAccountId(stagelessService: STAGELESS_SERVICE): string {
+  assert.ok(stagelessEnvironmentConfiguration[stagelessService], `AccountInfo for ${ stagelessService } is undefined`);
 
-// export function getAccountIdForService(service: SERVICE, stage: STAGE): string {
-//   return getAccountInfo(service, stage).accountId;
-// }
-//
-// export function getStageInfo(stage: STAGE): AccountInfo {
-//   if(stage === STAGE.ALPHA)
-//   return stageEnvironmentConfiguration[stage];
-// }
+  return stagelessEnvironmentConfiguration[stagelessService].accountId;
+}

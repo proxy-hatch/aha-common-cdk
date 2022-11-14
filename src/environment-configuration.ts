@@ -8,19 +8,13 @@ export interface AccountInfo {
   readonly githubConnectionArn?: string;
 }
 
-// cannot specify `[key in SERVICE]`, or else TS forces every service must be in each stage
-export type StageEnvironmentConfiguration = {
-  readonly [key: string]: AccountInfo;
-};
-
-// cannot specify `[key in SERVICE]`, or else TS forces every service must be in each stage
-export type StageInfo = {
+export type EnvInfo = {
   readonly [key: string]: AccountInfo;
 }
 
 export const AHA_ORGANIZATION_ACCOUNT = '083784680548';
 
-export const sharedStageEnvironmentConfiguration: StageEnvironmentConfiguration = {
+export const sharedStageEnvironmentConfiguration: EnvInfo = {
   [STAGE.BETA]: {
     accountId: '742084164729',
   },
@@ -32,7 +26,7 @@ export const sharedStageEnvironmentConfiguration: StageEnvironmentConfiguration 
   },
 };
 
-export const alphaEnvironmentConfiguration: StageInfo = {
+export const alphaEnvironmentConfiguration: EnvInfo = {
   [SERVICE.API_CORE]: {
     accountId: '275636488910',
   },
@@ -44,11 +38,17 @@ export const alphaEnvironmentConfiguration: StageInfo = {
   },
 };
 
-export const stagelessEnvironmentConfiguration: StageInfo = {
+export const stagelessEnvironmentConfiguration: EnvInfo = {
   [STAGELESS_SERVICE.DNS_MANAGEMENT]: {
     accountId: '992993174366',
   },
   [STAGELESS_SERVICE.OPS]: {
     accountId: '462602131761',
   },
+};
+
+export const serviceDnsShortname = {
+  [SERVICE.API_CORE]: 'core',
+  [SERVICE.API_AUTH]: 'auth',
+  [SERVICE.NFT_MGMT_SERVICE]: 'nft-mgmt',
 };

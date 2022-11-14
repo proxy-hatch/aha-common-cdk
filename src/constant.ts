@@ -31,3 +31,8 @@ export interface StackCreationInfo {
   readonly stage: STAGE;
   readonly stackPrefix: string;
 }
+
+export const AHA_ORGANIZATION_ID = 'o-0d8fgac99h';
+export const TOP_LEVEL_DOMAIN = 'aws.earnaha.com';
+export const DELEGATION_PARENT_DOMAIN = 'api.'.concat(TOP_LEVEL_DOMAIN);
+export const HOSTED_ZONE_DELEGATION_ROLE_NAME = 'AhaHostedZoneCrossAccountDelegationRole';
