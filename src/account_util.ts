@@ -73,7 +73,22 @@ export function getAccountInfo(service: SERVICE, stage: STAGE): AccountInfo {
     return alphaEnvironmentConfiguration[service];
   }
 
+  return getSharedStageAccountInfo(stage);
+}
+
+/**
+ * Returns the @link{AccountInfo} that a stage-service has configured
+ *
+ * @remarks only work for beta-prod as they are service-shared
+ *
+ * @returns AccountInfo
+ *
+ * @param stage {@link STAGE}
+ */
+export function getSharedStageAccountInfo(stage: STAGE): AccountInfo {
+  assert.ok(stage !== STAGE.ALPHA, `AccountInfo for ${ stage } is service-specific`);
   assert.ok(sharedStageEnvironmentConfiguration[stage], `AccountInfo for shared ${ stage } is undefined`);
+
   return sharedStageEnvironmentConfiguration[stage];
 }
 
@@ -100,4 +115,14 @@ export function getStagelessServiceAccountId(stagelessService: STAGELESS_SERVICE
   assert.ok(stagelessEnvironmentConfiguration[stagelessService], `AccountInfo for ${ stagelessService } is undefined`);
 
   return stagelessEnvironmentConfiguration[stagelessService].accountId;
+}
+
+/**
+ * Converts {@link STAGE} enum to array
+ *
+ * @returns list of {@link STAGE}s
+ *
+ */
+export function getAllStages(): STAGE[] {
+  return Object.values(STAGE);
 }

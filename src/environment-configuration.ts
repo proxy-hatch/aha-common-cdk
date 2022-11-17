@@ -17,6 +17,7 @@ export const AHA_ORGANIZATION_ACCOUNT = '083784680548';
 export const sharedStageEnvironmentConfiguration: EnvInfo = {
   [STAGE.BETA]: {
     accountId: '742084164729',
+    githubConnectionArn: 'arn:aws:codestar-connections:ap-northeast-1:742084164729:connection/343dd82e-81eb-4868-b09c-672ff3f28100',
   },
   [STAGE.GAMMA]: {
     accountId: '336932466870',
