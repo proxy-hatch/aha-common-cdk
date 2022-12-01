@@ -1,10 +1,11 @@
+import assert from 'node:assert';
 import { RemovalPolicy, Stack, StackProps, Stage } from 'aws-cdk-lib';
-import {
-  buildSynthStep,
-  createCompleteDeploymentStep,
-  createServiceImageBuildCodeBuildStep,
-  importGithubSshCmds,
-} from './pipeline-helper';
+import { BuildEnvironmentVariableType, BuildSpec, Cache, LinuxBuildImage } from 'aws-cdk-lib/aws-codebuild';
+import { PolicyStatement } from 'aws-cdk-lib/aws-iam';
+import { Bucket } from 'aws-cdk-lib/aws-s3';
+import { CodePipeline, ManualApprovalStep, ShellStep, Step } from 'aws-cdk-lib/pipelines';
+import { Construct } from 'constructs';
+import { createStackCreationInfo, getAccountInfo, getAllStages } from '../../account_util';
 import {
   AHA_DEFAULT_REGION,
   GITHUB_SSH_PRIVATE_KEY_SECRET_ID,
@@ -13,14 +14,15 @@ import {
   StackCreationInfo,
   STAGE,
 } from '../../constant';
-import { CodePipeline, ManualApprovalStep, ShellStep, Step } from 'aws-cdk-lib/pipelines';
-import { Construct } from 'constructs';
-import { createStackCreationInfo, getAccountInfo, getAllStages } from '../../account_util';
-import { BuildEnvironmentVariableType, BuildSpec, Cache, LinuxBuildImage } from 'aws-cdk-lib/aws-codebuild';
-import { PolicyStatement } from 'aws-cdk-lib/aws-iam';
-import { sharedStageEnvironmentConfiguration } from '../../environment-configuration';
 import { createPipelineEcrRepository } from '../../ecr_util';
-import { Bucket } from 'aws-cdk-lib/aws-s3';
+import { sharedStageEnvironmentConfiguration } from '../../environment-configuration';
+import { AhaIntegrationTestStep } from './aha-integration-test-step';
+import {
+  buildSynthStep,
+  createCompleteDeploymentStep,
+  createServiceImageBuildCodeBuildStep,
+  importGithubSshCmds,
+} from './pipeline-helper';
 
 
 /**
@@ -44,6 +46,20 @@ export interface AhaPipelineProps extends StackProps {
   readonly skipProdStages?: boolean; // false by default
   readonly prodManualApproval?: boolean; // false by default
   readonly trackingPackages: TrackingPackage[]; // the 1st must be service package
+  readonly integrationTestProps?: IntegrationTestProps;
+}
+
+/**
+ * Props to add an Integration test Codebuild step, attached at the end of each pipeline deployment stage
+ *
+ * @remarks integrationTestPackageName must exist in trackingPackages
+ * @remarks testRunCmds covers both repo build and run cmds
+ *
+ */
+export interface IntegrationTestProps {
+  readonly integrationTestPackageName: string;
+  readonly executionRolePolicies: PolicyStatement[];
+  readonly testRunCmds: string[];
 }
 
 /**
@@ -75,8 +91,8 @@ export interface DeploymentGroupCreationProps {
 export class AhaPipelineStack extends Stack {
   public readonly deploymentGroupCreationProps: DeploymentGroupCreationProps[] = [];
   public readonly pipeline: CodePipeline;
+  public readonly synthStep: ShellStep;
   private readonly props: AhaPipelineProps;
-  private readonly synthStep: ShellStep;
   private readonly buildStep: ShellStep;
 
   constructor(scope: Construct, id: string, props: AhaPipelineProps) {
@@ -91,8 +107,7 @@ export class AhaPipelineStack extends Stack {
     });
     this.props = props;
 
-
-    // Pipeline instantiation∂
+    // Pipeline instantiation
     const pipelineCacheBucket = this.createCacheBucket();
     this.synthStep = buildSynthStep(props.trackingPackages);
     this.pipeline = new CodePipeline(this, `${ props.service }-Pipeline`, {
@@ -120,12 +135,15 @@ export class AhaPipelineStack extends Stack {
               },
             },
             pre_build: {
-              'commands': importGithubSshCmds,
+              commands: importGithubSshCmds,
             },
           },
           cache: {
             paths: [
+              '/root/.yarn-cache/**/*',
+              '/root/.npm-cache/**/*',
               'node_modules/**/*',
+              'node_modules/*',
               'openssh-9.1p1/**/*', // see importGithubSshCmds
             ],
           },
@@ -133,13 +151,13 @@ export class AhaPipelineStack extends Stack {
         rolePolicy: [
           new PolicyStatement({
             sid: 'getGithubSshPrivateKeyPolicy',
-            actions: [ 'secretsmanager:GetSecretValue' ],
-            resources: [ '*' ],
+            actions: ['secretsmanager:GetSecretValue'],
+            resources: ['*'],
           }),
           new PolicyStatement({
             sid: 'uploadImagePolicy',
-            actions: [ 'ecr:*' ],
-            resources: [ '*' ],
+            actions: ['ecr:*'],
+            resources: ['*'],
           }),
         ],
       },
@@ -158,9 +176,9 @@ export class AhaPipelineStack extends Stack {
     const ecr = createPipelineEcrRepository(this, props.service);
 
     this.buildStep = createServiceImageBuildCodeBuildStep(
-        this.synthStep.addOutputDirectory('./'),
-        this.props.containerImageBuildCmds,
-        ecr);
+      this.synthStep.addOutputDirectory('./'),
+      this.props.containerImageBuildCmds,
+      ecr);
 
     // this is unfortunately the way to add a stage with just CodeBuild step
     // https://github.com/aws/aws-cdk/issues/15945#issuecomment-895392052
@@ -171,7 +189,6 @@ export class AhaPipelineStack extends Stack {
     this.buildDeploymentGroupCreationProps(props);
   }
 
-
   /**
    * Adds the deployment stacks in a single stage to the pipeline env. User of this construct must call this method for all stages.
    *
@@ -179,30 +196,54 @@ export class AhaPipelineStack extends Stack {
    * post-stack deployment: run integration test
    *
    * @param deploymentStacksStage - The collection of infrastructure stacks for this env
-   * @param stackCreationInfo - the env that infrastructure stacks is being deployed to
+   * @param stackCreationInfo - the env that infrastructure stacks is being deployed
    */
   public addDeploymentStage(stackCreationInfo: StackCreationInfo, deploymentStacksStage: Stage): void {
+    const { stackPrefix } = stackCreationInfo;
+
+    const { prodManualApproval, integrationTestProps, completeDeploymentCmds } = this.props;
+
     const preSteps: Step[] = [];
-    if (stackCreationInfo.stage == STAGE.PROD && this.props.prodManualApproval) {
+    if (stackCreationInfo.stage == STAGE.PROD && prodManualApproval) {
       preSteps.push(new ManualApprovalStep('PromoteToProd'));
     }
 
     const stagePostSteps: Step[] = [];
-    // stagePostSteps.push(new AhaJenkinsIntegrationTestStep(this, this.props.service, stackCreationInfo.stage, this.synthStep.addOutputDirectory('autotest')));
+    if (integrationTestProps) {
+      const { testRunCmds, integrationTestPackageName, executionRolePolicies } = integrationTestProps;
 
-    if (this.props.completeDeploymentCmds && this.props.completeDeploymentCmds.length > 0) {
-      stagePostSteps.push(createCompleteDeploymentStep(
-          this.buildStep.addOutputDirectory('./'),
+      const integTest = new AhaIntegrationTestStep(
+        this,
+        `${stackPrefix}-AhaIntegrationTest`,
+        {
+          integrationTestPackageFileSet:
+                this.synthStep.addOutputDirectory(
+                  `./${integrationTestPackageName}`,
+                ),
+          testRunCmds,
           stackCreationInfo,
-          this.props.completeDeploymentCmds!));
+          executionRolePolicies: executionRolePolicies,
+        },
+      );
+
+      stagePostSteps.push(integTest.integrationTestStep);
+    }
+
+    if (completeDeploymentCmds) {
+      assert.ok(completeDeploymentCmds.length > 0, 'completeDeploymentCmds cannot be empty');
+
+      stagePostSteps.push(createCompleteDeploymentStep(
+        this.buildStep.addOutputDirectory('./'),
+        stackCreationInfo,
+        completeDeploymentCmds));
     }
 
     this.pipeline.addStage(deploymentStacksStage,
-        {
-          pre: Step.sequence(preSteps),
-          post:
+      {
+        pre: Step.sequence(preSteps),
+        post:
               Step.sequence(stagePostSteps),
-        });
+      });
   }
 
   private buildDeploymentGroupCreationProps(props: AhaPipelineProps): void {
@@ -221,13 +262,12 @@ export class AhaPipelineStack extends Stack {
 
       this.deploymentGroupCreationProps.push({
         stackCreationInfo: createStackCreationInfo(
-            getAccountInfo(service, stage).accountId,
-            AHA_DEFAULT_REGION,
-            stage),
+          getAccountInfo(service, stage).accountId,
+          AHA_DEFAULT_REGION,
+          stage),
       });
     });
   }
-
 
   private createCacheBucket(): Bucket {
     return new Bucket(this, `${ this.props.service }-PipelineCacheBucket`, {

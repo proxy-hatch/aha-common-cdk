@@ -4,6 +4,7 @@ import { BuildSpec } from 'aws-cdk-lib/aws-codebuild';
 import { IStage } from 'aws-cdk-lib/aws-codepipeline';
 import * as cpactions from 'aws-cdk-lib/aws-codepipeline-actions';
 
+import { Repository } from 'aws-cdk-lib/aws-ecr';
 import { PolicyStatement } from 'aws-cdk-lib/aws-iam';
 
 import {
@@ -17,9 +18,8 @@ import {
   ShellStep,
   Step,
 } from 'aws-cdk-lib/pipelines';
-import { AHA_DEFAULT_REGION, GITHUB_ORGANIZATION_NAME, SERVICE, StackCreationInfo, STAGE } from '../../constant';
 import { getSharedStageAccountInfo } from '../../account_util';
-import { Repository } from 'aws-cdk-lib/aws-ecr';
+import { AHA_DEFAULT_REGION, GITHUB_ORGANIZATION_NAME, SERVICE, StackCreationInfo, STAGE } from '../../constant';
 import { TrackingPackage } from './aha-pipeline';
 
 export function createServiceImageBuildCodeBuildStep(inputFileSet: FileSet, containerImageBuildCmds: string[], ecr: Repository) {
@@ -62,11 +62,11 @@ export function createServiceImageBuildCodeBuildStep(inputFileSet: FileSet, cont
       },
     }),
 
-    rolePolicyStatements: [ new PolicyStatement({
+    rolePolicyStatements: [new PolicyStatement({
       sid: 'ServiceImageECRPush',
-      actions: [ 'ecr:*' ],
-      resources: [ ecr.repositoryArn ],
-    }) ],
+      actions: ['ecr:*'],
+      resources: [ecr.repositoryArn],
+    })],
   });
 }
 
@@ -152,10 +152,10 @@ export class AhaJenkinsIntegrationTestStep extends Step implements ICodePipeline
   provider: cpactions.JenkinsProvider;
 
   constructor(
-      private readonly scope: Stack,
-      private readonly service: SERVICE,
-      private readonly stage: STAGE,
-      private readonly input: FileSet,
+    private readonly scope: Stack,
+    private readonly service: SERVICE,
+    private readonly stage: STAGE,
+    private readonly input: FileSet,
   ) {
     super('JenkinsIntegrationTest');
 
@@ -182,7 +182,7 @@ export class AhaJenkinsIntegrationTestStep extends Step implements ICodePipeline
       projectName: AhaJenkinsIntegrationTestStep.getJenkinsData(this.stage),
 
       // Translate the FileSet into a codepipeline.Artifact
-      inputs: [ options.artifacts.toCodePipeline(this.input) ],
+      inputs: [options.artifacts.toCodePipeline(this.input)],
     }));
 
     return { runOrdersConsumed: 1 };

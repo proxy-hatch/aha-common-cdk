@@ -1,9 +1,9 @@
-import { AHA_DEFAULT_REGION, SERVICE, STAGE } from './constant';
 import { Duration, RemovalPolicy, Stack } from 'aws-cdk-lib';
 import { Repository } from 'aws-cdk-lib/aws-ecr';
 import { AccountPrincipal, Effect, PolicyStatement } from 'aws-cdk-lib/aws-iam';
-import { AHA_ORGANIZATION_ACCOUNT } from './environment-configuration';
 import { createStackCreationInfo, getAccountId, getSharedStageAccountIds } from './account_util';
+import { AHA_DEFAULT_REGION, SERVICE, STAGE } from './constant';
+import { AHA_ORGANIZATION_ACCOUNT } from './environment-configuration';
 
 /**
  * Returns the pipeline ECR repository name for the service
@@ -68,13 +68,13 @@ export function createEcrRepository(scope: Stack, service: SERVICE, stage: STAGE
 
 function createCrossAccountEcr(scope: Stack, ecrName: string, service: SERVICE): Repository {
   const ecr = new Repository(scope, ecrName, {
-        repositoryName: ecrName,
-        removalPolicy: RemovalPolicy.DESTROY,
-        lifecycleRules: [ {
-          description: 'limit max image count',
-          maxImageAge: Duration.days(90),
-        } ],
-      },
+    repositoryName: ecrName,
+    removalPolicy: RemovalPolicy.DESTROY,
+    lifecycleRules: [{
+      description: 'limit max image count',
+      maxImageAge: Duration.days(90),
+    }],
+  },
   );
 
   ecr.addToResourcePolicy(buildCrossAccountEcrResourcePolicy(service));
@@ -95,7 +95,7 @@ function buildCrossAccountEcrResourcePolicy(service: SERVICE) {
 
   return new PolicyStatement({
     effect: Effect.ALLOW,
-    actions: [ 'ecr:*' ],
+    actions: ['ecr:*'],
     principals: accountIdPrincipals,
   });
 }
