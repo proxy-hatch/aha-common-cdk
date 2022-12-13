@@ -133,8 +133,8 @@ export function buildSynthStep(trackingPackages: TrackingPackage[]): ShellStep {
     primaryOutputDirectory: 'cdk/cdk.out',
     commands: [
       'cd cdk',
-      'npm install',
-      'npm install aha-common-cdk', // github dependency seems to effectively do npm ci upon npm install, installing it explicitly refreshes it to latest
+      'npm ci --omit-dev',
+      'npm update aha-common-cdk',
       'npm run build',
     ],
   });

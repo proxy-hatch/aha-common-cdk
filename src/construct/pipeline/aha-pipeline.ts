@@ -14,13 +14,11 @@ import {
   StackCreationInfo,
   STAGE,
 } from '../../constant';
-import { createPipelineEcrRepository } from '../../ecr_util';
 import { sharedStageEnvironmentConfiguration } from '../../environment-configuration';
 import { AhaIntegrationTestStep } from './aha-integration-test-step';
 import {
   buildSynthStep,
   createCompleteDeploymentStep,
-  createServiceImageBuildCodeBuildStep,
   importGithubSshCmds,
 } from './pipeline-helper';
 
@@ -41,7 +39,6 @@ import {
 export interface AhaPipelineProps extends StackProps {
   readonly service: SERVICE;
   readonly pipelineSelfMutation?: boolean;
-  readonly containerImageBuildCmds: string[]; // CodeBuild cmds to build src code prior to Docker image build
   readonly completeDeploymentCmds?: string[]; // CodeBuild cmds to exec after deployment succeeds
   readonly skipProdStages?: boolean; // false by default
   readonly prodManualApproval?: boolean; // false by default
@@ -93,7 +90,6 @@ export class AhaPipelineStack extends Stack {
   public readonly pipeline: CodePipeline;
   public readonly synthStep: ShellStep;
   private readonly props: AhaPipelineProps;
-  private readonly buildStep: ShellStep;
 
   constructor(scope: Construct, id: string, props: AhaPipelineProps) {
     const pipelineAccountInfo = sharedStageEnvironmentConfiguration[STAGE.BETA];
@@ -135,7 +131,7 @@ export class AhaPipelineStack extends Stack {
               },
             },
             pre_build: {
-              commands: importGithubSshCmds,
+              commands: importGithubSshCmds
             },
           },
           cache: {
@@ -172,19 +168,6 @@ export class AhaPipelineStack extends Stack {
       },
     });
 
-    // Add Build stage
-    const ecr = createPipelineEcrRepository(this, props.service);
-
-    this.buildStep = createServiceImageBuildCodeBuildStep(
-      this.synthStep.addOutputDirectory('./'),
-      this.props.containerImageBuildCmds,
-      ecr);
-
-    // this is unfortunately the way to add a stage with just CodeBuild step
-    // https://github.com/aws/aws-cdk/issues/15945#issuecomment-895392052
-    const buildStage = this.pipeline.addWave('ServiceBuild');
-    buildStage.addPre(this.buildStep);
-
     // create service stage props for pipeline user
     this.buildDeploymentGroupCreationProps(props);
   }
@@ -209,6 +192,8 @@ export class AhaPipelineStack extends Stack {
     }
 
     const stagePostSteps: Step[] = [];
+
+    // add integration test step
     if (integrationTestProps) {
       const { testRunCmds, integrationTestPackageName, executionRolePolicies } = integrationTestProps;
 
@@ -233,7 +218,7 @@ export class AhaPipelineStack extends Stack {
       assert.ok(completeDeploymentCmds.length > 0, 'completeDeploymentCmds cannot be empty');
 
       stagePostSteps.push(createCompleteDeploymentStep(
-        this.buildStep.addOutputDirectory('./'),
+        this.synthStep.addOutputDirectory('./'),
         stackCreationInfo,
         completeDeploymentCmds));
     }
@@ -271,7 +256,6 @@ export class AhaPipelineStack extends Stack {
 
   private createCacheBucket(): Bucket {
     return new Bucket(this, `${ this.props.service }-PipelineCacheBucket`, {
-      bucketName: `${ this.props.service }-PipelineCacheBucket`.toLowerCase(),
       removalPolicy: RemovalPolicy.DESTROY,
       autoDeleteObjects: true,
     });
