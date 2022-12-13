@@ -131,7 +131,7 @@ export class AhaPipelineStack extends Stack {
               },
             },
             pre_build: {
-              commands: importGithubSshCmds
+              commands: importGithubSshCmds,
             },
           },
           cache: {
@@ -153,6 +153,11 @@ export class AhaPipelineStack extends Stack {
           new PolicyStatement({
             sid: 'uploadImagePolicy',
             actions: ['ecr:*'],
+            resources: ['*'],
+          }),
+          new PolicyStatement({
+            sid: 'kmsPolicy',
+            actions: ['kms:GenerateDataKey', 'kms:Decrypt'],
             resources: ['*'],
           }),
         ],
@@ -184,7 +189,11 @@ export class AhaPipelineStack extends Stack {
   public addDeploymentStage(stackCreationInfo: StackCreationInfo, deploymentStacksStage: Stage): void {
     const { stackPrefix } = stackCreationInfo;
 
-    const { prodManualApproval, integrationTestProps, completeDeploymentCmds } = this.props;
+    const {
+      prodManualApproval,
+      integrationTestProps,
+      completeDeploymentCmds,
+    } = this.props;
 
     const preSteps: Step[] = [];
     if (stackCreationInfo.stage == STAGE.PROD && prodManualApproval) {
@@ -195,16 +204,20 @@ export class AhaPipelineStack extends Stack {
 
     // add integration test step
     if (integrationTestProps) {
-      const { testRunCmds, integrationTestPackageName, executionRolePolicies } = integrationTestProps;
+      const {
+        testRunCmds,
+        integrationTestPackageName,
+        executionRolePolicies,
+      } = integrationTestProps;
 
       const integTest = new AhaIntegrationTestStep(
         this,
-        `${stackPrefix}-AhaIntegrationTest`,
+        `${ stackPrefix }-AhaIntegrationTest`,
         {
           integrationTestPackageFileSet:
-                this.synthStep.addOutputDirectory(
-                  `./${integrationTestPackageName}`,
-                ),
+            this.synthStep.addOutputDirectory(
+              `./${ integrationTestPackageName }`,
+            ),
           testRunCmds,
           stackCreationInfo,
           executionRolePolicies: executionRolePolicies,
@@ -227,7 +240,7 @@ export class AhaPipelineStack extends Stack {
       {
         pre: Step.sequence(preSteps),
         post:
-              Step.sequence(stagePostSteps),
+          Step.sequence(stagePostSteps),
       });
   }
 
