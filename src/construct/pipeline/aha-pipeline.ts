@@ -1,5 +1,5 @@
 import assert from 'node:assert';
-import { RemovalPolicy, Stack, StackProps, Stage } from 'aws-cdk-lib';
+import { RemovalPolicy, Stage } from 'aws-cdk-lib';
 import { BuildEnvironmentVariableType, BuildSpec, Cache, LinuxBuildImage } from 'aws-cdk-lib/aws-codebuild';
 import { PolicyStatement } from 'aws-cdk-lib/aws-iam';
 import { Bucket } from 'aws-cdk-lib/aws-s3';
@@ -9,12 +9,10 @@ import { createStackCreationInfo, getAccountInfo, getAllStages } from '../../acc
 import {
   AHA_DEFAULT_REGION,
   GITHUB_SSH_PRIVATE_KEY_SECRET_ID,
-  REGION,
   SERVICE,
   StackCreationInfo,
   STAGE,
 } from '../../constant';
-import { sharedStageEnvironmentConfiguration } from '../../environment-configuration';
 import { AhaIntegrationTestStep } from './aha-integration-test-step';
 import {
   buildSynthStep,
@@ -36,7 +34,7 @@ import {
  *
  */
 
-export interface AhaPipelineProps extends StackProps {
+export interface AhaPipelineProps {
   readonly service: SERVICE;
   readonly pipelineSelfMutation?: boolean;
   readonly completeDeploymentCmds?: string[]; // CodeBuild cmds to exec after deployment succeeds
@@ -85,22 +83,14 @@ export interface DeploymentGroupCreationProps {
  * @param deploymentStage - The collection of infrastructure stacks for this env
  *
  */
-export class AhaPipelineStack extends Stack {
+export class AhaPipeline extends Construct {
   public readonly deploymentGroupCreationProps: DeploymentGroupCreationProps[] = [];
   public readonly pipeline: CodePipeline;
   public readonly synthStep: ShellStep;
   private readonly props: AhaPipelineProps;
 
   constructor(scope: Construct, id: string, props: AhaPipelineProps) {
-    const pipelineAccountInfo = sharedStageEnvironmentConfiguration[STAGE.BETA];
-    const pipelineAccountId = pipelineAccountInfo.accountId;
-
-    super(scope, id, {
-      env: {
-        region: REGION.APN1,
-        account: pipelineAccountId,
-      },
-    });
+    super(scope, id);
     this.props = props;
 
     // Pipeline instantiation

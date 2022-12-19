@@ -2,6 +2,8 @@ export const AHA_DEFAULT_REGION = 'ap-northeast-1';
 export const GITHUB_ORGANIZATION_NAME = 'EarnAha';
 export const GITHUB_SSH_PRIVATE_KEY_SECRET_ID = 'github-ssh-private-key';
 export const GITHUB_SSH_PRIVATE_KEY_SECRET_ARN = 'arn:aws:secretsmanager:ap-northeast-1:742084164729:secret:github-ssh-private-key-Sogqtg';
+export const GITHUB_STATUS_TRACKING_TOKEN_SECRET_ID = 'github-commit-status-token';
+export const GITHUB_STATUS_TRACKING_TOKEN_SECRET_ARN = 'arn:aws:secretsmanager:ap-northeast-1:742084164729:secret:github-commit-status-token-KHIxwC';
 
 
 export enum REGION {

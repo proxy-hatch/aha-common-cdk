@@ -1,9 +1,10 @@
-import { Duration, RemovalPolicy, Stack } from 'aws-cdk-lib';
+import { Duration, RemovalPolicy } from 'aws-cdk-lib';
 import { Repository } from 'aws-cdk-lib/aws-ecr';
 import { AccountPrincipal, Effect, PolicyStatement } from 'aws-cdk-lib/aws-iam';
 import { createStackCreationInfo, getAccountId, getSharedStageAccountIds } from './account_util';
 import { AHA_DEFAULT_REGION, SERVICE, STAGE } from './constant';
 import { AHA_ORGANIZATION_ACCOUNT } from './environment-configuration';
+import { Construct } from 'constructs';
 
 /**
  * Returns the pipeline ECR repository name for the service
@@ -47,7 +48,7 @@ export function constructEcrName(stackPrefix: string, service: SERVICE) {
  * @param scope
  * @param service {@link SERVICE}
  */
-export function createPipelineEcrRepository(scope: Stack, service: SERVICE): Repository {
+export function createPipelineEcrRepository(scope: Construct, service: SERVICE): Repository {
   const ecrName = getPipelineEcrName(service);
 
   return createCrossAccountEcr(scope, ecrName, service);
@@ -60,13 +61,13 @@ export function createPipelineEcrRepository(scope: Stack, service: SERVICE): Rep
  * @param service {@link SERVICE}
  * @param stage {@link STAGE}
  */
-export function createEcrRepository(scope: Stack, service: SERVICE, stage: STAGE): Repository {
+export function createEcrRepository(scope: Construct, service: SERVICE, stage: STAGE): Repository {
   const ecrName = getEcrName(service, stage);
 
   return createCrossAccountEcr(scope, ecrName, service);
 }
 
-function createCrossAccountEcr(scope: Stack, ecrName: string, service: SERVICE): Repository {
+function createCrossAccountEcr(scope: Construct, ecrName: string, service: SERVICE): Repository {
   const ecr = new Repository(scope, ecrName, {
     repositoryName: ecrName,
     removalPolicy: RemovalPolicy.DESTROY,
