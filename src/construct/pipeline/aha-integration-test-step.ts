@@ -1,6 +1,6 @@
 import assert from 'node:assert';
 import { BuildSpec } from 'aws-cdk-lib/aws-codebuild';
-import { PolicyStatement } from 'aws-cdk-lib/aws-iam';
+import { Effect, PolicyStatement } from 'aws-cdk-lib/aws-iam';
 import { CodeBuildStep, FileSet } from 'aws-cdk-lib/pipelines';
 import { Construct } from 'constructs';
 import { StackCreationInfo } from '../../constant';
@@ -14,7 +14,7 @@ import { StackCreationInfo } from '../../constant';
 export interface AhaIntegrationTestStepProps {
   readonly stackCreationInfo: StackCreationInfo;
   readonly integrationTestPackageFileSet: FileSet;
-  readonly executionRolePolicies: PolicyStatement[];
+  readonly executionRoleName: string;
   readonly testRunCmds: string[];
 }
 
@@ -32,16 +32,24 @@ export class AhaIntegrationTestStep extends Construct {
       stackCreationInfo,
       integrationTestPackageFileSet,
       testRunCmds,
-      executionRolePolicies,
+      executionRoleName,
     } = props;
-    const { stage } = stackCreationInfo;
+    const { stage, account } = stackCreationInfo;
 
     assert.ok(testRunCmds.length > 0, 'There are no commands for integration test!');
+
+    const integrationTestExecutionRoleArn = `arn:aws:iam::${account}:role/${executionRoleName}`;
 
     this.integrationTestStep = new CodeBuildStep('IntegrationTest', {
       input: integrationTestPackageFileSet,
       commands: [],
-      rolePolicyStatements: executionRolePolicies,
+      rolePolicyStatements: [
+        new PolicyStatement({
+          effect: Effect.ALLOW,
+          resources: ['*'],
+          actions: ['sts:AssumeRole'],
+        }),
+      ],
       partialBuildSpec: BuildSpec.fromObject({
         env: {
           variables: {
@@ -49,6 +57,14 @@ export class AhaIntegrationTestStep extends Construct {
           },
         },
         phases: {
+          pre_build: {
+            commands: [
+              `sts=$(aws sts assume-role --role-arn ${integrationTestExecutionRoleArn} --role-session-name "test-profile" --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" --output text)`,
+              "export AWS_ACCESS_KEY_ID=$(echo $sts | awk '{print $1}')",
+              "export AWS_SECRET_ACCESS_KEY=$(echo $sts | awk '{print $2}')",
+              "export AWS_SESSION_TOKEN=$(echo $sts | awk '{print $3}')",
+            ],
+          },
           build: {
             commands: testRunCmds,
           },

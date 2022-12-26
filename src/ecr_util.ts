@@ -1,10 +1,10 @@
 import { Duration, RemovalPolicy } from 'aws-cdk-lib';
 import { Repository } from 'aws-cdk-lib/aws-ecr';
 import { AccountPrincipal, Effect, PolicyStatement } from 'aws-cdk-lib/aws-iam';
+import { Construct } from 'constructs';
 import { createStackCreationInfo, getAccountId, getSharedStageAccountIds } from './account_util';
 import { AHA_DEFAULT_REGION, SERVICE, STAGE } from './constant';
 import { AHA_ORGANIZATION_ACCOUNT } from './environment-configuration';
-import { Construct } from 'constructs';
 
 /**
  * Returns the pipeline ECR repository name for the service

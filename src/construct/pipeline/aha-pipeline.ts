@@ -53,7 +53,7 @@ export interface AhaPipelineProps {
  */
 export interface IntegrationTestProps {
   readonly integrationTestPackageName: string;
-  readonly executionRolePolicies: PolicyStatement[];
+  readonly executionRoleName: string;
   readonly testRunCmds: string[];
 }
 
@@ -197,10 +197,10 @@ export class AhaPipeline extends Construct {
       const {
         testRunCmds,
         integrationTestPackageName,
-        executionRolePolicies,
+        executionRoleName,
       } = integrationTestProps;
 
-      const integTest = new AhaIntegrationTestStep(
+      const integrationTest = new AhaIntegrationTestStep(
         this,
         `${ stackPrefix }-AhaIntegrationTest`,
         {
@@ -210,11 +210,11 @@ export class AhaPipeline extends Construct {
             ),
           testRunCmds,
           stackCreationInfo,
-          executionRolePolicies: executionRolePolicies,
+          executionRoleName,
         },
       );
 
-      stagePostSteps.push(integTest.integrationTestStep);
+      stagePostSteps.push(integrationTest.integrationTestStep);
     }
 
     if (completeDeploymentCmds) {
