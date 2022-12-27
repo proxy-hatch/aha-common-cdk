@@ -4,6 +4,12 @@ Collection of constants, helper methods, and CDK constructs to use in CDK infras
 
 See [api-core](https://github.com/EarnAha/api-core/) for usage examples.
 
+### Testing
+Unlike business logic codebase, infrastructure-as-code generally have trivial logic, but instead rely on extensive 3rd party libraries.
+
+Thus, unit test is omitted in favour for manual integration test - i.e., deploy to alpha (testing) AWS account and observe resource constructions.
+
+
 ### Adding new dependencies
 Be sure to add both devDependencies and peerDependencies for any cdk library that your package needs to consume to maintain version consistency.
 Reference: [Managing dependencies for construct library](https://tinyurl.com/manage-construct-dependencies)
